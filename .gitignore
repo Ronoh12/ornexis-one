@@ -1,0 +1,28 @@
+# Node
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+
+# Builds
+dist/
+build/
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Backups
+backups/*
+!backups/.gitkeep
+
+# VS Code
+.vscode/
+
+# OS Files
+Thumbs.db
+.DS_Store
