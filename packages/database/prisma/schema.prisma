@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/client"
+}
+datasource db {
+  provider = "postgresql"
+}
+
+enum OrganizationStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum OrganizationUserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+enum ContactType {
+  MEMBER
+  CUSTOMER
+  EMPLOYEE
+  SUPPLIER
+  VOLUNTEER
+  DONOR
+  PARTNER
+  OTHER
+}
+
+enum ContactStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+model Organization {
+  id                 String             @id @default(uuid()) @db.Uuid
+  name               String
+  slug               String             @unique
+  organizationType   String             @map("organization_type")
+  registrationNumber String?            @map("registration_number")
+  email              String?
+  phone              String?
+  website            String?
+  country            String
+  currency           String
+  timezone           String
+  status             OrganizationStatus @default(TRIAL)
+  plan               String?
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  roles              Role[]
+  organizationUsers  OrganizationUser[]
+  contacts           Contact[]
+
+  @@index([organizationType])
+  @@index([status])
+  @@map("organizations")
+}
+
+model User {
+  id              String     @id @default(uuid()) @db.Uuid
+  firstName       String     @map("first_name")
+  lastName        String     @map("last_name")
+  email           String     @unique
+  phone           String?
+  passwordHash    String?    @map("password_hash")
+  status          UserStatus @default(INVITED)
+  emailVerifiedAt DateTime?  @map("email_verified_at")
+  phoneVerifiedAt DateTime?  @map("phone_verified_at")
+  lastLoginAt     DateTime?  @map("last_login_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  organizationUsers OrganizationUser[] @relation("OrganizationUserMembership")
+
+  invitedUsers OrganizationUser[] @relation("OrganizationUserInvitedBy")
+
+  @@index([phone])
+  @@index([status])
+  @@map("users")
+}
+
+model Role {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @db.Uuid @map("organization_id")
+  name               String
+  description        String?
+  isSystemRole       Boolean            @default(false) @map("is_system_role")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  rolePermissions    RolePermission[]
+  organizationUsers  OrganizationUser[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+model Permission {
+  id              String           @id @default(uuid()) @db.Uuid
+  code            String           @unique
+  name            String
+  description     String?
+  module          String
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid()) @db.Uuid
+  roleId       String     @db.Uuid @map("role_id")
+  permissionId String     @db.Uuid @map("permission_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model OrganizationUser {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @db.Uuid @map("organization_id")
+  userId         String                 @db.Uuid @map("user_id")
+  roleId         String                 @db.Uuid @map("role_id")
+  status         OrganizationUserStatus @default(INVITED)
+  joinedAt       DateTime?              @map("joined_at")
+  invitedBy      String?                @db.Uuid @map("invited_by")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  user User @relation("OrganizationUserMembership", fields: [userId], references: [id],  onDelete: Restrict)
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  inviter User? @relation("OrganizationUserInvitedBy", fields: [invitedBy], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([status])
+  @@map("organization_users")
+}
+
+model Contact {
+  id               String        @id @default(uuid()) @db.Uuid
+  organizationId   String        @db.Uuid @map("organization_id")
+  contactType      ContactType   @map("contact_type")
+  firstName        String?       @map("first_name")
+  lastName         String?       @map("last_name")
+  organizationName String?       @map("organization_name")
+  email            String?
+  phone            String?
+  secondaryPhone   String?       @map("secondary_phone")
+  nationalId       String?       @map("national_id")
+  dateOfBirth      DateTime?     @db.Date @map("date_of_birth")
+  address          String?
+  city             String?
+  countyState      String?       @map("county_state")
+  country          String?
+  status           ContactStatus @default(ACTIVE)
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([organizationId, contactType])
+  @@index([organizationId, status])
+  @@index([organizationId, phone])
+  @@index([organizationId, email])
+  @@map("contacts")
+}
