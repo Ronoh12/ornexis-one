@@ -1,28 +1,15 @@
 import express from "express";
-import { prisma } from "../../../packages/database/index.js";
+import healthRouter from "./routes/health.js";
+import { notFound } from "./middleware/notFound.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
 
 app.use(express.json());
 
-app.get("/health", async (_req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
+app.use("/health", healthRouter);
 
-    res.json({
-      status: "healthy",
-      application: "ORNEXIS ONE",
-      version: process.env.APP_VERSION || "1.0.0",
-      database: "connected"
-    });
-  } catch {
-    res.status(503).json({
-      status: "unhealthy",
-      application: "ORNEXIS ONE",
-      version: process.env.APP_VERSION || "1.0.0",
-      database: "disconnected"
-    });
-  }
-});
+app.use(notFound);
+app.use(errorHandler);
 
 export default app;
