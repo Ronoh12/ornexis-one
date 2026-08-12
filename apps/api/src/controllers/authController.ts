@@ -8,92 +8,96 @@ import {
   loginUser
 } from "../services/authService.js";
 
+import {
+  validateActivationInput,
+  validateLoginInput
+} from "../validators/authValidator.js";
+
 export async function activate(
   req: Request,
   res: Response
 ) {
-  const {
-    userId,
-    password
-  } = req.body;
+  const validation =
+    validateActivationInput(req.body);
 
-  if (
-    typeof userId !== "string" ||
-    typeof password !== "string" ||
-    !userId ||
-    password.length < 8
-  ) {
+  if (!validation.success) {
     return res.status(400).json({
       success: false,
-      message:
-        "A valid userId and password of at least 8 characters are required"
+      message: validation.message
     });
   }
 
-  try {
-    const user = await activateUser({
-      userId,
-      password
-    });
+  const result =
+    await activateUser(validation.data);
 
-    return res.json({
-      success: true,
-      message: "User activated successfully",
-      data: {
-        id: user.id,
-        email: user.email,
-        status: user.status
-      }
-    });
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  if (!result.success) {
+    if (result.reason === "NOT_FOUND") {
       return res.status(404).json({
         success: false,
         message: "User not found"
       });
     }
 
-    throw error;
+    if (result.reason === "ALREADY_ACTIVE") {
+      return res.status(409).json({
+        success: false,
+        message: "User account is already active"
+      });
+    }
   }
+
+  return res.json({
+    success: true,
+    message: "User activated successfully",
+    data: {
+      id: result.data.id,
+      email: result.data.email,
+      status: result.data.status
+    }
+  });
 }
 
 export async function login(
   req: Request,
   res: Response
 ) {
-  const {
-    email,
-    password
-  } = req.body;
+  const validation =
+    validateLoginInput(req.body);
 
-  if (
-    typeof email !== "string" ||
-    typeof password !== "string" ||
-    !email ||
-    !password
-  ) {
+  if (!validation.success) {
     return res.status(400).json({
       success: false,
-      message: "Email and password are required"
+      message: validation.message
     });
   }
 
   const result =
-    await loginUser({
-      email,
-      password
-    });
+    await loginUser(validation.data);
 
-  if (!result) {
-    return res.status(401).json({
+ if (!result.success) {
+  if (result.reason === "SUSPENDED") {
+    return res.status(403).json({
       success: false,
-      message: "Invalid email or password"
+      message: "This account has been suspended"
     });
   }
+
+  if (result.reason === "DISABLED") {
+    return res.status(403).json({
+      success: false,
+      message: "This account has been disabled"
+    });
+  }
+
+  return res.status(401).json({
+    success: false,
+    message: "Invalid email or password"
+  });
+}
 
   return res.json({
     success: true,
     message: "Login successful",
-    data: result
+    data: result.data
   });
 }
