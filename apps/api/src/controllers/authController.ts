@@ -5,6 +5,7 @@ import type {
 
 import {
   activateUser,
+  getCurrentUser,
   loginUser
 } from "../services/authService.js";
 
@@ -99,5 +100,38 @@ export async function login(
     success: true,
     message: "Login successful",
     data: result.data
+  });
+}
+
+export async function me(
+  req: Request,
+  res: Response
+) {
+  const userId =
+    (req as Request & {
+      auth?: {
+        userId?: string;
+      };
+    }).auth?.userId;
+
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required"
+    });
+  }
+
+  const user = await getCurrentUser(userId);
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: "User not found"
+    });
+  }
+
+  return res.json({
+    success: true,
+    data: user
   });
 }
