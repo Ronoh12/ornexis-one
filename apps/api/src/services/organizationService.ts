@@ -45,3 +45,13 @@ export async function deleteOrganizationById(id: string) {
     }
   });
 }
+
+export async function getOrganizationForTenant(
+  organizationId: string
+) {
+  return prisma.organization.findUnique({
+    where: {
+      id: organizationId
+    }
+  });
+}

@@ -4,18 +4,43 @@ import {
   createOrganization,
   deleteOrganizationById,
   getOrganizationById,
-  getOrganizations
+  getOrganizations,
+  getOrganizationForTenant
 } from "../services/organizationService.js";
 
 export async function listOrganizations(
-  _req: Request,
+  req: Request,
   res: Response
 ) {
-  const organizations = await getOrganizations();
+  const organizationId =
+    (req as Request & {
+      auth?: {
+        organizationId?: string;
+      };
+    }).auth?.organizationId;
+
+  if (!organizationId) {
+    return res.status(400).json({
+      success: false,
+      message: "Organization context is required"
+    });
+  }
+
+  const organization =
+    await getOrganizationForTenant(
+      organizationId
+    );
+
+  if (!organization) {
+    return res.status(404).json({
+      success: false,
+      message: "Organization not found"
+    });
+  }
 
   return res.json({
     success: true,
-    data: organizations
+    data: [organization]
   });
 }
 

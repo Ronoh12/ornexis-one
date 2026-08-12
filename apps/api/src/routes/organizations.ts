@@ -7,14 +7,16 @@ import {
   removeOrganization
 } from "../controllers/organizationController.js";
 
-import { devAuth } from "../middleware/devAuth.js";
+import { authenticate } from "../middleware/authenticate.js";
+import { organizationContext } from "../middleware/organizationContext.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 
 router.get(
   "/",
-  devAuth,
+  authenticate,
+  organizationContext,
   requirePermission("organizations.view"),
   listOrganizations
 );
