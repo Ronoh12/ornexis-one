@@ -8,6 +8,7 @@ import organizationUsersRouter from "./routes/organizationUsers.js";
 import permissionsRouter from "./routes/permissions.js";
 import rolePermissionsRouter from "./routes/rolePermissions.js";
 import authRouter from "./routes/auth.js";
+import auditLogsRouter from "./routes/auditLogs.js";
 
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -24,6 +25,7 @@ app.use("/organization-users", organizationUsersRouter);
 app.use("/permissions", permissionsRouter);
 app.use("/role-permissions", rolePermissionsRouter);
 app.use("/auth", authRouter);
+app.use("/audit-logs", auditLogsRouter);
 
 app.use(notFound);
 app.use(errorHandler);
