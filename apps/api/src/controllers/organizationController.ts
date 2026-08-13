@@ -96,6 +96,36 @@ export async function addOrganization(
   try {
     const organization = await createOrganization(req.body);
 
+    const auth =
+  (req as Request & {
+    auth?: {
+      userId?: string;
+      organizationId?: string;
+    };
+  }).auth;
+
+await createAuditLog({
+  ...(auth?.organizationId
+    ? { organizationId: auth.organizationId }
+    : {}),
+  ...(auth?.userId
+    ? { userId: auth.userId }
+    : {}),
+  action: "ORGANIZATION_CREATED",
+  entityType: "Organization",
+  entityId: organization.id,
+  newValues: {
+    name: organization.name,
+    slug: organization.slug,
+    organizationType: organization.organizationType,
+    status: organization.status
+  },
+  ...(req.ip ? { ipAddress: req.ip } : {}),
+  ...(req.headers["user-agent"]
+    ? { userAgent: req.headers["user-agent"] }
+    : {})
+});
+
     return res.status(201).json({
       success: true,
       message: "Organization created successfully",
@@ -137,6 +167,36 @@ export async function removeOrganization(
   }
 
   await deleteOrganizationById(id);
+
+  const auth =
+  (req as Request & {
+    auth?: {
+      userId?: string;
+      organizationId?: string;
+    };
+  }).auth;
+
+await createAuditLog({
+  ...(auth?.organizationId
+    ? { organizationId: auth.organizationId }
+    : {}),
+  ...(auth?.userId
+    ? { userId: auth.userId }
+    : {}),
+  action: "ORGANIZATION_DELETED",
+  entityType: "Organization",
+  entityId: existingOrganization.id,
+  oldValues: {
+    name: existingOrganization.name,
+    slug: existingOrganization.slug,
+    organizationType: existingOrganization.organizationType,
+    status: existingOrganization.status
+  },
+  ...(req.ip ? { ipAddress: req.ip } : {}),
+  ...(req.headers["user-agent"]
+    ? { userAgent: req.headers["user-agent"] }
+    : {})
+});
 
   return res.json({
     success: true,
