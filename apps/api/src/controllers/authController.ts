@@ -14,6 +14,8 @@ import {
   validateLoginInput
 } from "../validators/authValidator.js";
 
+import { createAuditLog } from "../services/auditService.js";
+
 export async function activate(
   req: Request,
   res: Response
@@ -75,7 +77,7 @@ export async function login(
   const result =
     await loginUser(validation.data);
 
- if (!result.success) {
+if (!result.success) {
   if (result.reason === "SUSPENDED") {
     return res.status(403).json({
       success: false,
@@ -96,11 +98,24 @@ export async function login(
   });
 }
 
-  return res.json({
-    success: true,
-    message: "Login successful",
-    data: result.data
-  });
+const loginData = result.data;
+
+await createAuditLog({
+  userId: loginData.user.id,
+  action: "USER_LOGIN",
+  entityType: "User",
+  entityId: loginData.user.id,
+  ...(req.ip ? { ipAddress: req.ip } : {}),
+  ...(req.headers["user-agent"]
+    ? { userAgent: req.headers["user-agent"] }
+    : {})
+});
+
+return res.json({
+  success: true,
+  message: "Login successful",
+  data: loginData
+});
 }
 
 export async function me(

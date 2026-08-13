@@ -2,6 +2,7 @@ generator client {
   provider = "prisma-client"
   output   = "../generated/client"
 }
+
 datasource db {
   provider = "postgresql"
 }
@@ -61,9 +62,10 @@ model Organization {
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  roles              Role[]
-  organizationUsers  OrganizationUser[]
-  contacts           Contact[]
+  roles             Role[]
+  organizationUsers OrganizationUser[]
+  contacts          Contact[]
+  auditLogs         AuditLog[]
 
   @@index([organizationType])
   @@index([status])
@@ -88,24 +90,26 @@ model User {
 
   invitedUsers OrganizationUser[] @relation("OrganizationUserInvitedBy")
 
+  auditLogs AuditLog[]
+
   @@index([phone])
   @@index([status])
   @@map("users")
 }
 
 model Role {
-  id                 String             @id @default(uuid()) @db.Uuid
-  organizationId     String             @db.Uuid @map("organization_id")
-  name               String
-  description        String?
-  isSystemRole       Boolean            @default(false) @map("is_system_role")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  isSystemRole   Boolean  @default(false) @map("is_system_role")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  rolePermissions    RolePermission[]
-  organizationUsers  OrganizationUser[]
+  rolePermissions   RolePermission[]
+  organizationUsers OrganizationUser[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -113,13 +117,13 @@ model Role {
 }
 
 model Permission {
-  id              String           @id @default(uuid()) @db.Uuid
-  code            String           @unique
-  name            String
-  description     String?
-  module          String
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  description String?
+  module      String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   rolePermissions RolePermission[]
 
@@ -128,14 +132,14 @@ model Permission {
 }
 
 model RolePermission {
-  id           String     @id @default(uuid()) @db.Uuid
-  roleId       String     @db.Uuid @map("role_id")
-  permissionId String     @db.Uuid @map("permission_id")
-  createdAt    DateTime   @default(now()) @map("created_at")
+  id           String   @id @default(uuid()) @db.Uuid
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permissionId])
   @@index([roleId])
@@ -145,18 +149,18 @@ model RolePermission {
 
 model OrganizationUser {
   id             String                 @id @default(uuid()) @db.Uuid
-  organizationId String                 @db.Uuid @map("organization_id")
-  userId         String                 @db.Uuid @map("user_id")
-  roleId         String                 @db.Uuid @map("role_id")
+  organizationId String                 @map("organization_id") @db.Uuid
+  userId         String                 @map("user_id") @db.Uuid
+  roleId         String                 @map("role_id") @db.Uuid
   status         OrganizationUserStatus @default(INVITED)
   joinedAt       DateTime?              @map("joined_at")
-  invitedBy      String?                @db.Uuid @map("invited_by")
+  invitedBy      String?                @map("invited_by") @db.Uuid
   createdAt      DateTime               @default(now()) @map("created_at")
   updatedAt      DateTime               @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  user User @relation("OrganizationUserMembership", fields: [userId], references: [id],  onDelete: Restrict)
+  user User @relation("OrganizationUserMembership", fields: [userId], references: [id], onDelete: Restrict)
 
   role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
@@ -172,7 +176,7 @@ model OrganizationUser {
 
 model Contact {
   id               String        @id @default(uuid()) @db.Uuid
-  organizationId   String        @db.Uuid @map("organization_id")
+  organizationId   String        @map("organization_id") @db.Uuid
   contactType      ContactType   @map("contact_type")
   firstName        String?       @map("first_name")
   lastName         String?       @map("last_name")
@@ -181,7 +185,7 @@ model Contact {
   phone            String?
   secondaryPhone   String?       @map("secondary_phone")
   nationalId       String?       @map("national_id")
-  dateOfBirth      DateTime?     @db.Date @map("date_of_birth")
+  dateOfBirth      DateTime?     @map("date_of_birth") @db.Date
   address          String?
   city             String?
   countyState      String?       @map("county_state")
@@ -198,4 +202,33 @@ model Contact {
   @@index([organizationId, phone])
   @@index([organizationId, email])
   @@map("contacts")
+}
+
+model AuditLog {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String? @map("organization_id") @db.Uuid
+  userId         String? @map("user_id") @db.Uuid
+
+  action     String
+  entityType String  @map("entity_type")
+  entityId   String? @map("entity_id")
+
+  oldValues Json? @map("old_values")
+  newValues Json? @map("new_values")
+
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@map("audit_logs")
 }
