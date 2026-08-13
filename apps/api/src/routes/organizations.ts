@@ -22,7 +22,19 @@ router.get(
 );
 
 router.get("/:id", getOrganization);
-router.post("/", addOrganization);
-router.delete("/:id", removeOrganization);
+router.post(
+  "/",
+  authenticate,
+  organizationContext,
+  requirePermission("organizations.create"),
+  addOrganization
+);
 
+router.delete(
+  "/:id",
+  authenticate,
+  organizationContext,
+  requirePermission("organizations.delete"),
+  removeOrganization
+);
 export default router;
