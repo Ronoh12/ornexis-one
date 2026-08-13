@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { createAuditLog } from "../services/auditService.js";
 
 import {
   createOrganization,
@@ -12,14 +13,18 @@ export async function listOrganizations(
   req: Request,
   res: Response
 ) {
-  const organizationId =
+  const auth =
     (req as Request & {
       auth?: {
+        userId?: string;
         organizationId?: string;
       };
-    }).auth?.organizationId;
+    }).auth;
 
-  if (!organizationId) {
+  const userId = auth?.userId;
+  const organizationId = auth?.organizationId;
+
+  if (!userId || !organizationId) {
     return res.status(400).json({
       success: false,
       message: "Organization context is required"
@@ -37,6 +42,18 @@ export async function listOrganizations(
       message: "Organization not found"
     });
   }
+
+  await createAuditLog({
+    organizationId,
+    userId,
+    action: "ORGANIZATION_VIEWED",
+    entityType: "Organization",
+    entityId: organization.id,
+    ...(req.ip ? { ipAddress: req.ip } : {}),
+    ...(req.headers["user-agent"]
+      ? { userAgent: req.headers["user-agent"] }
+      : {})
+  });
 
   return res.json({
     success: true,
