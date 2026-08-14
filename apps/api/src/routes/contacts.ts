@@ -1,10 +1,11 @@
 import { Router } from "express";
 
 import {
-  addPermission,
-  getPermission,
-  listPermissions
-} from "../controllers/permissionController.js";
+  addContact,
+  getContact,
+  listContacts,
+  removeContact
+} from "../controllers/contactController.js";
 
 import { authenticate } from "../middleware/authenticate.js";
 import { organizationContext } from "../middleware/organizationContext.js";
@@ -16,24 +17,32 @@ router.get(
   "/",
   authenticate,
   organizationContext,
-  requirePermission("permissions.view"),
-  listPermissions
+  requirePermission("contacts.view"),
+  listContacts
 );
 
 router.get(
   "/:id",
   authenticate,
   organizationContext,
-  requirePermission("permissions.view"),
-  getPermission
+  requirePermission("contacts.view"),
+  getContact
 );
 
 router.post(
   "/",
   authenticate,
   organizationContext,
-  requirePermission("permissions.manage"),
-  addPermission
+  requirePermission("contacts.create"),
+  addContact
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  organizationContext,
+  requirePermission("contacts.delete"),
+  removeContact
 );
 
 export default router;
