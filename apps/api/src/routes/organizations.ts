@@ -21,7 +21,14 @@ router.get(
   listOrganizations
 );
 
-router.get("/:id", getOrganization);
+router.get(
+  "/:id",
+  authenticate,
+  organizationContext,
+  requirePermission("organizations.view"),
+  getOrganization
+);
+
 router.post(
   "/",
   authenticate,

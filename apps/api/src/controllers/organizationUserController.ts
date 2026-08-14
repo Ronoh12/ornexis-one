@@ -6,6 +6,14 @@ import {
   getOrganizationUsers
 } from "../services/organizationUserService.js";
 
+import {
+  createInvitationToken
+} from "../services/invitationTokenService.js";
+
+import {
+  createAuditLog
+} from "../services/auditService.js";
+
 type AuthenticatedRequest = Request & {
   auth?: {
     userId?: string;
@@ -172,11 +180,49 @@ if (status !== undefined) {
       }
     }
 
+    let invitationToken:
+      | string
+      | undefined;
+
+    if (result.data.status === "INVITED") {
+      const invitation =
+        await createInvitationToken({
+          userId: result.data.userId,
+          organizationUserId:
+            result.data.id
+        });
+
+      invitationToken =
+        invitation.invitationToken;
+
+      await createAuditLog({
+        organizationId,
+        userId,
+        action: "INVITATION_CREATED",
+        entityType: "OrganizationUser",
+        entityId: result.data.id,
+        ...(req.ip
+          ? { ipAddress: req.ip }
+          : {}),
+        ...(req.headers["user-agent"]
+          ? {
+              userAgent:
+                req.headers["user-agent"]
+            }
+          : {})
+      });
+    }
+
     return res.status(201).json({
       success: true,
       message:
         "User added to organization successfully",
-      data: result.data
+      data: {
+        membership: result.data,
+        ...(invitationToken !== undefined
+          ? { invitationToken }
+          : {})
+      }
     });
   } catch (error: any) {
     if (error?.code === "P2002") {

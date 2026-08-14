@@ -6,6 +6,8 @@ import type {
 
 import jwt from "jsonwebtoken";
 
+import { prisma } from "../../../../packages/database/index.js";
+
 type AuthenticatedRequest = Request & {
   auth?: {
     userId: string;
@@ -16,7 +18,7 @@ type JwtPayload = {
   userId: string;
 };
 
-export function authenticate(
+export async function authenticate(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
@@ -53,15 +55,49 @@ export function authenticate(
         jwtSecret
       ) as JwtPayload;
 
+    if (
+      !payload.userId ||
+      typeof payload.userId !== "string"
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid or expired token"
+      });
+    }
+
+    const user =
+      await prisma.user.findUnique({
+        where: {
+          id: payload.userId
+        },
+        select: {
+          id: true,
+          status: true
+        }
+      });
+
+    if (
+      !user ||
+      user.status !== "ACTIVE"
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Authentication required"
+      });
+    }
+
     req.auth = {
-      userId: payload.userId
+      userId: user.id
     };
 
-    next();
+    return next();
   } catch {
     return res.status(401).json({
       success: false,
-      message: "Invalid or expired token"
+      message:
+        "Invalid or expired token"
     });
   }
 }

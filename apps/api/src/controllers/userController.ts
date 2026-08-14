@@ -1,4 +1,7 @@
-import type { Request, Response } from "express";
+import type {
+  Request,
+  Response
+} from "express";
 
 import {
   createUser,
@@ -6,11 +9,35 @@ import {
   getUsers
 } from "../services/userService.js";
 
+type AuthenticatedRequest = Request & {
+  auth?: {
+    userId?: string;
+    organizationId?: string;
+  };
+};
+
 export async function listUsers(
-  _req: Request,
+  req: Request,
   res: Response
 ) {
-  const users = await getUsers();
+  const auth =
+    (req as AuthenticatedRequest).auth;
+
+  const organizationId =
+    auth?.organizationId;
+
+  if (!organizationId) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Organization context is required"
+    });
+  }
+
+  const users =
+    await getUsers(
+      organizationId
+    );
 
   return res.json({
     success: true,
@@ -22,21 +49,44 @@ export async function getUser(
   req: Request,
   res: Response
 ) {
+  const auth =
+    (req as AuthenticatedRequest).auth;
+
+  const organizationId =
+    auth?.organizationId;
+
   const id = req.params.id;
 
-  if (typeof id !== "string" || !id) {
+  if (!organizationId) {
     return res.status(400).json({
       success: false,
-      message: "A valid user ID is required"
+      message:
+        "Organization context is required"
     });
   }
 
-  const user = await getUserById(id);
+  if (
+    typeof id !== "string" ||
+    !id
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "A valid user ID is required"
+    });
+  }
+
+  const user =
+    await getUserById(
+      id,
+      organizationId
+    );
 
   if (!user) {
     return res.status(404).json({
       success: false,
-      message: "User not found"
+      message:
+        "User not found"
     });
   }
 
@@ -50,19 +100,36 @@ export async function addUser(
   req: Request,
   res: Response
 ) {
+  const auth =
+    (req as AuthenticatedRequest).auth;
+
+  const organizationId =
+    auth?.organizationId;
+
+  if (!organizationId) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Organization context is required"
+    });
+  }
+
   try {
-    const user = await createUser(req.body);
+    const user =
+      await createUser(req.body);
 
     return res.status(201).json({
       success: true,
-      message: "User created successfully",
+      message:
+        "User created successfully",
       data: user
     });
   } catch (error: any) {
     if (error?.code === "P2002") {
       return res.status(409).json({
         success: false,
-        message: "A user with this email already exists"
+        message:
+          "A user with this email already exists"
       });
     }
 

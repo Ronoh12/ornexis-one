@@ -65,16 +65,48 @@ export async function getOrganization(
   req: Request,
   res: Response
 ) {
+  const auth =
+    (req as Request & {
+      auth?: {
+        userId?: string;
+        organizationId?: string;
+      };
+    }).auth;
+
+  const organizationId =
+    auth?.organizationId;
+
   const id = req.params.id;
 
-  if (typeof id !== "string" || !id) {
+  if (!organizationId) {
+    return res.status(400).json({
+      success: false,
+      message: "Organization context is required"
+    });
+  }
+
+  if (
+    typeof id !== "string" ||
+    !id
+  ) {
     return res.status(400).json({
       success: false,
       message: "A valid organization ID is required"
     });
   }
 
-  const organization = await getOrganizationById(id);
+  if (id !== organizationId) {
+    return res.status(403).json({
+      success: false,
+      message:
+        "You do not have access to this organization"
+    });
+  }
+
+  const organization =
+    await getOrganizationForTenant(
+      organizationId
+    );
 
   if (!organization) {
     return res.status(404).json({
@@ -147,59 +179,103 @@ export async function removeOrganization(
   req: Request,
   res: Response
 ) {
-  const id = req.params.id;
+  const auth =
+    (req as Request & {
+      auth?: {
+        userId?: string;
+        organizationId?: string;
+      };
+    }).auth;
 
-  if (typeof id !== "string" || !id) {
+  const userId =
+    auth?.userId;
+
+  const organizationId =
+    auth?.organizationId;
+
+  const id =
+    req.params.id;
+
+  if (
+    !userId ||
+    !organizationId
+  ) {
     return res.status(400).json({
       success: false,
-      message: "A valid organization ID is required"
+      message:
+        "Organization context is required"
+    });
+  }
+
+  if (
+    typeof id !== "string" ||
+    !id
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "A valid organization ID is required"
+    });
+  }
+
+  if (id !== organizationId) {
+    return res.status(403).json({
+      success: false,
+      message:
+        "You do not have access to this organization"
     });
   }
 
   const existingOrganization =
-    await getOrganizationById(id);
+    await getOrganizationForTenant(
+      organizationId
+    );
 
   if (!existingOrganization) {
     return res.status(404).json({
       success: false,
-      message: "Organization not found"
+      message:
+        "Organization not found"
     });
   }
 
-  await deleteOrganizationById(id);
+  await deleteOrganizationById(
+    organizationId
+  );
 
-  const auth =
-  (req as Request & {
-    auth?: {
-      userId?: string;
-      organizationId?: string;
-    };
-  }).auth;
-
-await createAuditLog({
-  ...(auth?.organizationId
-    ? { organizationId: auth.organizationId }
-    : {}),
-  ...(auth?.userId
-    ? { userId: auth.userId }
-    : {}),
-  action: "ORGANIZATION_DELETED",
-  entityType: "Organization",
-  entityId: existingOrganization.id,
-  oldValues: {
-    name: existingOrganization.name,
-    slug: existingOrganization.slug,
-    organizationType: existingOrganization.organizationType,
-    status: existingOrganization.status
-  },
-  ...(req.ip ? { ipAddress: req.ip } : {}),
-  ...(req.headers["user-agent"]
-    ? { userAgent: req.headers["user-agent"] }
-    : {})
-});
+  await createAuditLog({
+    organizationId,
+    userId,
+    action:
+      "ORGANIZATION_DELETED",
+    entityType:
+      "Organization",
+    entityId:
+      existingOrganization.id,
+    oldValues: {
+      name:
+        existingOrganization.name,
+      slug:
+        existingOrganization.slug,
+      organizationType:
+        existingOrganization.organizationType,
+      status:
+        existingOrganization.status
+    },
+    ...(req.ip
+      ? { ipAddress: req.ip }
+      : {}),
+    ...(req.headers["user-agent"]
+      ? {
+          userAgent:
+            req.headers["user-agent"]
+        }
+      : {})
+  });
 
   return res.json({
     success: true,
-    message: "Organization deleted successfully"
+    message:
+      "Organization deleted successfully"
   });
 }

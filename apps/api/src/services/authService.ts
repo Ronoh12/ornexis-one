@@ -3,63 +3,160 @@ import jwt from "jsonwebtoken";
 
 import { prisma } from "../../../../packages/database/index.js";
 
+import {
+  createRefreshSession
+} from "./refreshSessionService.js";
+
+import {
+  getValidInvitationToken
+} from "./invitationTokenService.js";
+
+function createAccessToken(
+  userId: string
+) {
+  const jwtSecret =
+    process.env.JWT_SECRET;
+
+  if (!jwtSecret) {
+    throw new Error(
+      "JWT_SECRET is not configured."
+    );
+  }
+
+  return jwt.sign(
+    {
+      userId
+    },
+    jwtSecret,
+    {
+      expiresIn: "1h"
+    }
+  );
+}
+
 type LoginInput = {
   email: string;
   password: string;
 };
 
 type ActivateUserInput = {
-  userId: string;
+  invitationToken: string;
   password: string;
+};
+
+type SessionMetadata = {
+  ipAddress?: string;
+  userAgent?: string;
 };
 
 export async function activateUser(
   data: ActivateUserInput
 ) {
-  const user = await prisma.user.findUnique({
-    where: {
-      id: data.userId
-    }
-  });
+  const invitation =
+    await getValidInvitationToken(
+      data.invitationToken
+    );
 
-  if (!user) {
+  if (!invitation) {
     return {
       success: false as const,
-      reason: "NOT_FOUND" as const
+      reason: "INVALID_INVITATION" as const
     };
   }
 
-  if (user.status === "ACTIVE") {
+  if (invitation.user.status === "ACTIVE") {
     return {
       success: false as const,
       reason: "ALREADY_ACTIVE" as const
     };
   }
 
-  const passwordHash = await bcrypt.hash(
-    data.password,
-    12
-  );
+  if (
+    invitation.user.status === "SUSPENDED" ||
+    invitation.user.status === "DISABLED"
+  ) {
+    return {
+      success: false as const,
+      reason: "ACCOUNT_INACTIVE" as const
+    };
+  }
 
-  const activatedUser =
-    await prisma.user.update({
-      where: {
-        id: data.userId
-      },
-      data: {
-        passwordHash,
-        status: "ACTIVE"
+  if (
+    invitation.organizationUser.status !==
+    "INVITED"
+  ) {
+    return {
+      success: false as const,
+      reason: "INVALID_INVITATION" as const
+    };
+  }
+
+  const passwordHash =
+    await bcrypt.hash(
+      data.password,
+      12
+    );
+
+  const now = new Date();
+
+  const result =
+    await prisma.$transaction(
+      async (tx) => {
+        const activatedUser =
+          await tx.user.update({
+            where: {
+              id: invitation.userId
+            },
+            data: {
+              passwordHash,
+              status: "ACTIVE"
+            },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              status: true
+            }
+          });
+
+        const membership =
+          await tx.organizationUser.update({
+            where: {
+              id:
+                invitation.organizationUserId
+            },
+            data: {
+              status: "ACTIVE",
+              joinedAt: now
+            }
+          });
+
+        await tx.invitationToken.update({
+          where: {
+            id: invitation.id
+          },
+          data: {
+            consumedAt: now
+          }
+        });
+
+        return {
+          activatedUser,
+          membership
+        };
       }
-    });
+    );
 
   return {
     success: true as const,
-    data: activatedUser
+    data: result
   };
 }
 
 export async function loginUser(
-  data: LoginInput
+  data: LoginInput,
+  sessionMetadata?: SessionMetadata
 ) {
   const user = await prisma.user.findUnique({
     where: {
@@ -88,6 +185,13 @@ export async function loginUser(
     };
   }
 
+  if (user.status !== "ACTIVE") {
+    return {
+      success: false as const,
+      reason: "INVALID_CREDENTIALS" as const
+    };
+  }
+
   const passwordMatches =
     await bcrypt.compare(
       data.password,
@@ -101,36 +205,50 @@ export async function loginUser(
     };
   }
 
-  const jwtSecret =
-    process.env.JWT_SECRET;
+  const accessToken =
+    createAccessToken(user.id);
 
-  if (!jwtSecret) {
-    throw new Error(
-      "JWT_SECRET is not configured."
-    );
-  }
+  const refreshSession =
+    await createRefreshSession({
+      userId: user.id,
+      ...(sessionMetadata?.ipAddress !== undefined
+        ? {
+            ipAddress:
+              sessionMetadata.ipAddress
+          }
+        : {}),
+      ...(sessionMetadata?.userAgent !== undefined
+        ? {
+            userAgent:
+              sessionMetadata.userAgent
+          }
+        : {})
+    });
 
-  const token = jwt.sign(
-    {
-      userId: user.id
-    },
-    jwtSecret,
-    {
-      expiresIn: "1h"
-    }
-  );
+  const updatedUser =
+    await prisma.user.update({
+      where: {
+        id: user.id
+      },
+      data: {
+        lastLoginAt: new Date()
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        status: true
+      }
+    });
 
   return {
     success: true as const,
     data: {
-      user: {
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        status: user.status
-      },
-      token
+      user: updatedUser,
+      accessToken,
+      refreshToken:
+        refreshSession.refreshToken
     }
   };
 }
@@ -156,4 +274,10 @@ export async function getCurrentUser(
       updatedAt: true
     }
   });
+}
+
+export function issueAccessToken(
+  userId: string
+) {
+  return createAccessToken(userId);
 }
