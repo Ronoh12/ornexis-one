@@ -68,11 +68,11 @@ Sprint Checklist
 
 ## Quality
 
-☐ Git Commit
+☑ Git Commit
 
 ☑ Review Completed
 
-☐ Ready For Sprint 2
+☑ Ready For Sprint 2
 
 ---
 
@@ -84,4 +84,4 @@ A developer should be able to clone the repository, install dependencies, config
 
 Status
 
-FINAL REVIEW
+COMPLETE
