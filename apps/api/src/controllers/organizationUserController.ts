@@ -6,12 +6,38 @@ import {
   getOrganizationUsers
 } from "../services/organizationUserService.js";
 
+type AuthenticatedRequest = Request & {
+  auth?: {
+    userId?: string;
+    organizationId?: string;
+  };
+};
+
+const ORGANIZATION_USER_STATUSES = [
+  "INVITED",
+  "ACTIVE",
+  "SUSPENDED",
+  "REMOVED"
+] as const;
+
 export async function listOrganizationUsers(
-  _req: Request,
+  req: Request,
   res: Response
 ) {
+  const auth = (req as AuthenticatedRequest).auth;
+  const organizationId = auth?.organizationId;
+
+  if (!organizationId) {
+    return res.status(400).json({
+      success: false,
+      message: "Organization context is required"
+    });
+  }
+
   const memberships =
-    await getOrganizationUsers();
+    await getOrganizationUsers(
+      organizationId
+    );
 
   return res.json({
     success: true,
@@ -23,7 +49,17 @@ export async function getOrganizationUser(
   req: Request,
   res: Response
 ) {
+  const auth = (req as AuthenticatedRequest).auth;
+  const organizationId = auth?.organizationId;
+
   const id = req.params.id;
+
+  if (!organizationId) {
+    return res.status(400).json({
+      success: false,
+      message: "Organization context is required"
+    });
+  }
 
   if (typeof id !== "string" || !id) {
     return res.status(400).json({
@@ -33,7 +69,10 @@ export async function getOrganizationUser(
   }
 
   const membership =
-    await getOrganizationUserById(id);
+    await getOrganizationUserById(
+      id,
+      organizationId
+    );
 
   if (!membership) {
     return res.status(404).json({
@@ -52,27 +91,107 @@ export async function addOrganizationUser(
   req: Request,
   res: Response
 ) {
+  const auth = (req as AuthenticatedRequest).auth;
+
+  const userId = auth?.userId;
+  const organizationId = auth?.organizationId;
+
+  if (!userId || !organizationId) {
+    return res.status(400).json({
+      success: false,
+      message: "Organization context is required"
+    });
+  }
+
+  const {
+    userId: membershipUserId,
+    roleId,
+    status
+  } = req.body;
+
+  if (
+    typeof membershipUserId !== "string" ||
+    !membershipUserId
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "A valid user ID is required"
+    });
+  }
+
+  if (
+    typeof roleId !== "string" ||
+    !roleId
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "A valid role ID is required"
+    });
+  }
+
+  let validatedStatus:
+  | (typeof ORGANIZATION_USER_STATUSES)[number]
+  | undefined;
+
+if (status !== undefined) {
+  if (
+    typeof status !== "string" ||
+    !ORGANIZATION_USER_STATUSES.includes(
+      status as (typeof ORGANIZATION_USER_STATUSES)[number]
+    )
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "A valid organization user status is required"
+    });
+  }
+
+  validatedStatus =
+    status as (typeof ORGANIZATION_USER_STATUSES)[number];
+}
+
   try {
-    const membership =
-      await createOrganizationUser(req.body);
+    const result =
+      await createOrganizationUser({
+        organizationId,
+        userId: membershipUserId,
+        roleId,
+        ...(validatedStatus !== undefined
+        ? { status: validatedStatus }
+        : {}),
+        invitedBy: userId
+      });
+
+    if (!result.success) {
+      if (result.reason === "INVALID_ROLE") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Role does not belong to this organization"
+        });
+      }
+    }
 
     return res.status(201).json({
       success: true,
-      message: "User added to organization successfully",
-      data: membership
+      message:
+        "User added to organization successfully",
+      data: result.data
     });
   } catch (error: any) {
     if (error?.code === "P2002") {
       return res.status(409).json({
         success: false,
-        message: "This user already belongs to this organization"
+        message:
+          "This user already belongs to this organization"
       });
     }
 
     if (error?.code === "P2003") {
       return res.status(400).json({
         success: false,
-        message: "Organization, user, or role does not exist"
+        message:
+          "User or related record does not exist"
       });
     }
 

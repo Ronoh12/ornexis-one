@@ -112,6 +112,7 @@ model Role {
   organizationUsers OrganizationUser[]
 
   @@unique([organizationId, name])
+  @@unique([id, organizationId])
   @@index([organizationId])
   @@map("roles")
 }
@@ -162,7 +163,7 @@ model OrganizationUser {
 
   user User @relation("OrganizationUserMembership", fields: [userId], references: [id], onDelete: Restrict)
 
-  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  role Role @relation(fields: [roleId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
   inviter User? @relation("OrganizationUserInvitedBy", fields: [invitedBy], references: [id], onDelete: SetNull)
 
