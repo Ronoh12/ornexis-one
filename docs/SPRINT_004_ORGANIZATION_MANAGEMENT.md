@@ -1037,9 +1037,9 @@ Before Sprint 004 is closed:
 
 ☑ Git staged review
 
-☐ Git commit
+☑ Git commit
 
-☐ Git push
+☑ Git push
 
 ---
 
