@@ -7,18 +7,27 @@ export type CreateRoleInput = {
   isSystemRole?: boolean;
 };
 
-export async function getRoles() {
+export async function getRoles(
+  organizationId: string
+) {
   return prisma.role.findMany({
+    where: {
+      organizationId
+    },
     orderBy: {
       createdAt: "desc"
     }
   });
 }
 
-export async function getRoleById(id: string) {
-  return prisma.role.findUnique({
+export async function getRoleById(
+  id: string,
+  organizationId: string
+) {
+  return prisma.role.findFirst({
     where: {
-      id
+      id,
+      organizationId
     }
   });
 }

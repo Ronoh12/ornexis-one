@@ -3,7 +3,9 @@ import type { Request, Response } from "express";
 import {
   createOrganizationUser,
   getOrganizationUserById,
-  getOrganizationUsers
+  getOrganizationUsers,
+  removeOrganizationUser,
+  updateOrganizationUser
 } from "../services/organizationUserService.js";
 
 import {
@@ -13,6 +15,10 @@ import {
 import {
   createAuditLog
 } from "../services/auditService.js";
+
+import {
+  validateOrganizationUserUpdateInput
+} from "../validators/organizationUserValidator.js";
 
 type AuthenticatedRequest = Request & {
   auth?: {
@@ -92,6 +98,287 @@ export async function getOrganizationUser(
   return res.json({
     success: true,
     data: membership
+  });
+}
+
+export async function updateOrganizationUserMembership(
+  req: Request,
+  res: Response
+) {
+  const auth =
+    (req as AuthenticatedRequest).auth;
+
+  const userId =
+    auth?.userId;
+
+  const organizationId =
+    auth?.organizationId;
+
+  const id =
+    req.params.id;
+
+  if (
+    !userId ||
+    !organizationId
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Organization context is required"
+    });
+  }
+
+  if (
+    typeof id !== "string" ||
+    !id
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "A valid organization membership ID is required"
+    });
+  }
+
+  const validation =
+    validateOrganizationUserUpdateInput(
+      req.body
+    );
+
+  if (!validation.success) {
+    return res.status(400).json({
+      success: false,
+      message:
+        validation.message
+    });
+  }
+
+  const existingMembership =
+    await getOrganizationUserById(
+      id,
+      organizationId
+    );
+
+  if (!existingMembership) {
+    return res.status(404).json({
+      success: false,
+      message:
+        "Organization membership not found"
+    });
+  }
+
+  const result =
+    await updateOrganizationUser(
+      id,
+      organizationId,
+      validation.data
+    );
+
+  if (
+    result.reason ===
+    "LAST_ACTIVE_ADMINISTRATOR"
+  ) {
+    return res.status(409).json({
+      success: false,
+      message:
+        "The last active Administrator cannot be suspended, removed, or reassigned"
+    });
+  }
+
+  if (!result.success) {
+    if (result.reason === "INVALID_ROLE") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Role does not belong to this organization"
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      message:
+        "Organization membership not found"
+    });
+  }
+
+  const updatedMembership =
+    result.data;
+
+  await createAuditLog({
+    organizationId,
+    userId,
+    action:
+      "ORGANIZATION_USER_UPDATED",
+    entityType:
+      "OrganizationUser",
+    entityId:
+      updatedMembership.id,
+    oldValues: {
+      roleId:
+        existingMembership.roleId,
+      status:
+        existingMembership.status
+    },
+    newValues: {
+      roleId:
+        updatedMembership.roleId,
+      status:
+        updatedMembership.status
+    },
+    ...(req.ip
+      ? {
+          ipAddress:
+            req.ip
+        }
+      : {}),
+    ...(req.headers["user-agent"]
+      ? {
+          userAgent:
+            req.headers["user-agent"]
+        }
+      : {})
+  });
+
+  return res.json({
+    success: true,
+    message:
+      "Organization user updated successfully",
+    data:
+      updatedMembership
+  });
+}
+
+export async function removeOrganizationUserMembership(
+  req: Request,
+  res: Response
+) {
+  const auth =
+    (req as AuthenticatedRequest).auth;
+
+  const userId =
+    auth?.userId;
+
+  const organizationId =
+    auth?.organizationId;
+
+  const id =
+    req.params.id;
+
+  if (
+    !userId ||
+    !organizationId
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Organization context is required"
+    });
+  }
+
+  if (
+    typeof id !== "string" ||
+    !id
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "A valid organization membership ID is required"
+    });
+  }
+
+  const existingMembership =
+    await getOrganizationUserById(
+      id,
+      organizationId
+    );
+
+  if (!existingMembership) {
+    return res.status(404).json({
+      success: false,
+      message:
+        "Organization membership not found"
+    });
+  }
+
+  const result =
+    await removeOrganizationUser(
+      id,
+      organizationId
+    );
+
+  if (
+    result.reason ===
+    "LAST_ACTIVE_ADMINISTRATOR"
+  ) {
+    return res.status(409).json({
+      success: false,
+      message:
+        "The last active Administrator cannot be removed"
+    });
+  }
+
+  if (!result.success) {
+    if (
+      result.reason ===
+      "ALREADY_REMOVED"
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Organization membership is already removed"
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      message:
+        "Organization membership not found"
+    });
+  }
+
+  const removedMembership =
+    result.data;
+
+  await createAuditLog({
+    organizationId,
+    userId,
+    action:
+      "ORGANIZATION_USER_REMOVED",
+    entityType:
+      "OrganizationUser",
+    entityId:
+      removedMembership.id,
+    oldValues: {
+      roleId:
+        existingMembership.roleId,
+      status:
+        existingMembership.status
+    },
+    newValues: {
+      roleId:
+        removedMembership.roleId,
+      status:
+        removedMembership.status
+    },
+    ...(req.ip
+      ? {
+          ipAddress:
+            req.ip
+        }
+      : {}),
+    ...(req.headers["user-agent"]
+      ? {
+          userAgent:
+            req.headers["user-agent"]
+        }
+      : {})
+  });
+
+  return res.json({
+    success: true,
+    message:
+      "Organization user removed successfully",
+    data:
+      removedMembership
   });
 }
 

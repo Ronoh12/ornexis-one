@@ -14,6 +14,17 @@ export type CreateOrganizationInput = {
   plan?: string;
 };
 
+export type UpdateOrganizationInput = {
+  name?: string;
+  registrationNumber?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  country?: string;
+  currency?: string;
+  timezone?: string;
+};
+
 export async function getOrganizations() {
   return prisma.organization.findMany({
     orderBy: {
@@ -53,5 +64,17 @@ export async function getOrganizationForTenant(
     where: {
       id: organizationId
     }
+  });
+}
+
+export async function updateOrganizationForTenant(
+  organizationId: string,
+  data: UpdateOrganizationInput
+) {
+  return prisma.organization.update({
+    where: {
+      id: organizationId
+    },
+    data
   });
 }

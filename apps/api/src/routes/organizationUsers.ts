@@ -3,7 +3,9 @@ import { Router } from "express";
 import {
   addOrganizationUser,
   getOrganizationUser,
-  listOrganizationUsers
+  listOrganizationUsers,
+  removeOrganizationUserMembership,
+  updateOrganizationUserMembership
 } from "../controllers/organizationUserController.js";
 
 import { authenticate } from "../middleware/authenticate.js";
@@ -34,6 +36,22 @@ router.post(
   organizationContext,
   requirePermission("organization_users.manage"),
   addOrganizationUser
+);
+
+router.patch(
+  "/:id",
+  authenticate,
+  organizationContext,
+  requirePermission("organization_users.manage"),
+  updateOrganizationUserMembership
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  organizationContext,
+  requirePermission("organization_users.manage"),
+  removeOrganizationUserMembership
 );
 
 export default router;
