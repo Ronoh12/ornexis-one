@@ -1043,18 +1043,13 @@ Before Sprint 004 is closed:
 
 ---
 
-## Remaining Sprint 004 Work
+## Sprint 004 Closure
 
-Before Sprint 004 is closed:
+All planned Sprint 004 implementation, database migration, validation,
+tenant-isolation testing, permission testing, audit verification,
+documentation, Git review, commit and push activities have been completed.
 
-1. Test a successful organization-user role change using another valid role.
-2. Explicitly test cross-tenant access for organization settings.
-3. Explicitly test cross-tenant access for organization branding.
-4. Test the new permissions using a restricted role that does not have them.
-5. Run the final technical gate after those tests.
-6. Finalize this document.
-7. Stage and review the Sprint 004 diff.
-8. Commit and push Sprint 004.
+Sprint 004 is formally closed.
 
 ---
 
@@ -1077,4 +1072,4 @@ The resulting organization layer must be safe for future dashboard, finance, HR,
 
 ## Status
 
-IN PROGRESS
+COMPLETE
