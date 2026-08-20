@@ -4,12 +4,21 @@ import {
   addContact,
   getContact,
   listContacts,
-  removeContact
+  removeContact,
+  updateContact
 } from "../controllers/contactController.js";
 
-import { authenticate } from "../middleware/authenticate.js";
-import { organizationContext } from "../middleware/organizationContext.js";
-import { requirePermission } from "../middleware/requirePermission.js";
+import {
+  authenticate
+} from "../middleware/authenticate.js";
+
+import {
+  organizationContext
+} from "../middleware/organizationContext.js";
+
+import {
+  requirePermission
+} from "../middleware/requirePermission.js";
 
 const router = Router();
 
@@ -35,6 +44,14 @@ router.post(
   organizationContext,
   requirePermission("contacts.create"),
   addContact
+);
+
+router.patch(
+  "/:id",
+  authenticate,
+  organizationContext,
+  requirePermission("contacts.update"),
+  updateContact
 );
 
 router.delete(

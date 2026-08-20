@@ -198,6 +198,8 @@ model OrganizationUser {
 model Contact {
   id               String        @id @default(uuid()) @db.Uuid
   organizationId   String        @map("organization_id") @db.Uuid
+  branchId         String?       @map("branch_id") @db.Uuid
+  departmentId     String?       @map("department_id") @db.Uuid
   contactType      ContactType   @map("contact_type")
   firstName        String?       @map("first_name")
   lastName         String?       @map("last_name")
@@ -216,8 +218,14 @@ model Contact {
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch       Branch?      @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  department   Department?  @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
   @@index([organizationId])
+  @@index([branchId])
+  @@index([departmentId])
+  @@index([organizationId, branchId])
+  @@index([organizationId, departmentId])
   @@index([organizationId, contactType])
   @@index([organizationId, status])
   @@index([organizationId, phone])
@@ -364,6 +372,7 @@ model Branch {
   organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   departments       Department[]
   organizationUsers OrganizationUser[]
+  contacts          Contact[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -387,6 +396,7 @@ model Department {
   organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   branch            Branch?            @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
   organizationUsers OrganizationUser[]
+  contacts          Contact[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])

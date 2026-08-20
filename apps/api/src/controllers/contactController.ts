@@ -1,13 +1,26 @@
-import type { Request, Response } from "express";
+import type {
+  Request,
+  Response
+} from "express";
 
 import {
   createContactForOrganization,
   deleteContactForOrganization,
   getContactByIdForOrganization,
-  getContactsByOrganization
+  getContactsByOrganization,
+  updateContactForOrganization
 } from "../services/contactService.js";
 
-import { createAuditLog } from "../services/auditService.js";
+import {
+  createAuditLog
+} from "../services/auditService.js";
+
+import {
+  isValidContactId,
+  validateContactCreate,
+  validateContactFilters,
+  validateContactUpdate
+} from "../validators/contactValidator.js";
 
 type AuthenticatedRequest = Request & {
   auth?: {
@@ -16,35 +29,160 @@ type AuthenticatedRequest = Request & {
   };
 };
 
-const CONTACT_TYPES = [
-  "MEMBER",
-  "CUSTOMER",
-  "EMPLOYEE",
-  "SUPPLIER",
-  "VOLUNTEER",
-  "DONOR",
-  "PARTNER",
-  "OTHER"
-] as const;
+function getAuthContext(
+  req: Request
+) {
+  const auth =
+    (req as AuthenticatedRequest).auth;
+
+  return {
+    userId:
+      auth?.userId,
+    organizationId:
+      auth?.organizationId
+  };
+}
+
+function handleStructureFailure(
+  reason:
+    | "INVALID_BRANCH"
+    | "INVALID_DEPARTMENT"
+    | "BRANCH_DEPARTMENT_MISMATCH",
+  res: Response
+) {
+  if (
+    reason ===
+    "INVALID_BRANCH"
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Branch does not belong to this organization"
+    });
+  }
+
+  if (
+    reason ===
+    "INVALID_DEPARTMENT"
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Department does not belong to this organization"
+    });
+  }
+
+  return res.status(400).json({
+    success: false,
+    message:
+      "Department does not belong to the selected branch"
+  });
+}
+
+function auditContactValues(
+  contact: {
+    contactType: string;
+    branchId: string | null;
+    departmentId: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    organizationName: string | null;
+    email: string | null;
+    phone: string | null;
+    secondaryPhone: string | null;
+    nationalId: string | null;
+    dateOfBirth: Date | null;
+    address: string | null;
+    city: string | null;
+    countyState: string | null;
+    country: string | null;
+    status: string;
+  }
+) {
+  return {
+    contactType:
+      contact.contactType,
+
+    branchId:
+      contact.branchId,
+
+    departmentId:
+      contact.departmentId,
+
+    firstName:
+      contact.firstName,
+
+    lastName:
+      contact.lastName,
+
+    organizationName:
+      contact.organizationName,
+
+    email:
+      contact.email,
+
+    phone:
+      contact.phone,
+
+    secondaryPhone:
+      contact.secondaryPhone,
+
+    nationalId:
+      contact.nationalId,
+
+    dateOfBirth:
+      contact.dateOfBirth,
+
+    address:
+      contact.address,
+
+    city:
+      contact.city,
+
+    countyState:
+      contact.countyState,
+
+    country:
+      contact.country,
+
+    status:
+      contact.status
+  };
+}
 
 export async function listContacts(
   req: Request,
   res: Response
 ) {
-  const auth = (req as AuthenticatedRequest).auth;
-
-  const organizationId = auth?.organizationId;
+  const {
+    organizationId
+  } = getAuthContext(req);
 
   if (!organizationId) {
     return res.status(400).json({
       success: false,
-      message: "Organization context is required"
+      message:
+        "Organization context is required"
+    });
+  }
+
+  const validation =
+    validateContactFilters(
+      req.query as Record<string, unknown>
+    );
+
+  if (!validation.success) {
+    return res.status(400).json({
+      success: false,
+      message:
+        validation.message
     });
   }
 
   const contacts =
     await getContactsByOrganization(
-      organizationId
+      organizationId,
+      validation.data
     );
 
   return res.json({
@@ -57,24 +195,29 @@ export async function getContact(
   req: Request,
   res: Response
 ) {
-  const auth = (req as AuthenticatedRequest).auth;
+  const {
+    organizationId
+  } = getAuthContext(req);
 
-  const organizationId =
-    auth?.organizationId;
-
-  const id = req.params.id;
+  const id =
+    req.params.id;
 
   if (!organizationId) {
     return res.status(400).json({
       success: false,
-      message: "Organization context is required"
+      message:
+        "Organization context is required"
     });
   }
 
-  if (typeof id !== "string" || !id) {
+  if (
+    typeof id !== "string" ||
+    !isValidContactId(id)
+  ) {
     return res.status(400).json({
       success: false,
-      message: "A valid contact ID is required"
+      message:
+        "A valid contact ID is required"
     });
   }
 
@@ -87,7 +230,8 @@ export async function getContact(
   if (!contact) {
     return res.status(404).json({
       success: false,
-      message: "Contact not found"
+      message:
+        "Contact not found"
     });
   }
 
@@ -101,151 +245,86 @@ export async function addContact(
   req: Request,
   res: Response
 ) {
-  const auth = (req as AuthenticatedRequest).auth;
-
-  const userId = auth?.userId;
-  const organizationId =
-    auth?.organizationId;
-
-  if (!userId || !organizationId) {
-    return res.status(400).json({
-      success: false,
-      message: "Organization context is required"
-    });
-  }
-
   const {
-    contactType,
-    firstName,
-    lastName,
-    organizationName,
-    email,
-    phone,
-    secondaryPhone,
-    nationalId,
-    dateOfBirth,
-    address,
-    city,
-    countyState,
-    country
-  } = req.body;
+    userId,
+    organizationId
+  } = getAuthContext(req);
 
   if (
-    typeof contactType !== "string" ||
-    !CONTACT_TYPES.includes(
-      contactType as (typeof CONTACT_TYPES)[number]
-    )
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "A valid contact type is required"
-    });
-  }
-
-  if (
-    !firstName &&
-    !lastName &&
-    !organizationName
+    !userId ||
+    !organizationId
   ) {
     return res.status(400).json({
       success: false,
       message:
-        "A contact must have a person name or organization name"
+        "Organization context is required"
     });
   }
 
-  let parsedDateOfBirth: Date | undefined;
+  const validation =
+    validateContactCreate(
+      req.body
+    );
 
-  if (dateOfBirth !== undefined) {
-    const date = new Date(dateOfBirth);
+  if (!validation.success) {
+    return res.status(400).json({
+      success: false,
+      message:
+        validation.message
+    });
+  }
 
-    if (Number.isNaN(date.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid date of birth"
-      });
+  const result =
+    await createContactForOrganization(
+      organizationId,
+      validation.data
+    );
+
+  if (!result.success) {
+    if (
+      result.reason ===
+        "INVALID_BRANCH" ||
+      result.reason ===
+        "INVALID_DEPARTMENT" ||
+      result.reason ===
+        "BRANCH_DEPARTMENT_MISMATCH"
+    ) {
+      return handleStructureFailure(
+        result.reason,
+        res
+      );
     }
 
-    parsedDateOfBirth = date;
+    return res.status(400).json({
+      success: false,
+      message:
+        "Unable to create contact"
+    });
   }
 
   const contact =
-    await createContactForOrganization(
-      organizationId,
-      {
-        contactType:
-          contactType as (typeof CONTACT_TYPES)[number],
-
-        ...(typeof firstName === "string"
-          ? { firstName }
-          : {}),
-
-        ...(typeof lastName === "string"
-          ? { lastName }
-          : {}),
-
-        ...(typeof organizationName === "string"
-          ? { organizationName }
-          : {}),
-
-        ...(typeof email === "string"
-          ? { email }
-          : {}),
-
-        ...(typeof phone === "string"
-          ? { phone }
-          : {}),
-
-        ...(typeof secondaryPhone === "string"
-          ? { secondaryPhone }
-          : {}),
-
-        ...(typeof nationalId === "string"
-          ? { nationalId }
-          : {}),
-
-        ...(parsedDateOfBirth
-          ? { dateOfBirth: parsedDateOfBirth }
-          : {}),
-
-        ...(typeof address === "string"
-          ? { address }
-          : {}),
-
-        ...(typeof city === "string"
-          ? { city }
-          : {}),
-
-        ...(typeof countyState === "string"
-          ? { countyState }
-          : {}),
-
-        ...(typeof country === "string"
-          ? { country }
-          : {})
-      }
-    );
+    result.data;
 
   await createAuditLog({
     organizationId,
     userId,
-    action: "CONTACT_CREATED",
-    entityType: "Contact",
-    entityId: contact.id,
+    action:
+      "CONTACT_CREATED",
+    entityType:
+      "Contact",
+    entityId:
+      contact.id,
 
-    newValues: {
-      contactType: contact.contactType,
-      firstName: contact.firstName,
-      lastName: contact.lastName,
-      organizationName:
-        contact.organizationName,
-      email: contact.email,
-      phone: contact.phone,
-      status: contact.status
-    },
+    newValues:
+      auditContactValues(
+        contact
+      ),
 
     ...(req.ip
-      ? { ipAddress: req.ip }
+      ? {
+          ipAddress:
+            req.ip
+        }
       : {}),
 
     ...(req.headers["user-agent"]
@@ -258,81 +337,136 @@ export async function addContact(
 
   return res.status(201).json({
     success: true,
-    message: "Contact created successfully",
-    data: contact
+    message:
+      "Contact created successfully",
+    data:
+      contact
   });
 }
 
-export async function removeContact(
+export async function updateContact(
   req: Request,
   res: Response
 ) {
-  const auth = (req as AuthenticatedRequest).auth;
+  const {
+    userId,
+    organizationId
+  } = getAuthContext(req);
 
-  const userId = auth?.userId;
-  const organizationId =
-    auth?.organizationId;
+  const id =
+    req.params.id;
 
-  const id = req.params.id;
-
-  if (!userId || !organizationId) {
+  if (
+    !userId ||
+    !organizationId
+  ) {
     return res.status(400).json({
       success: false,
-      message: "Organization context is required"
+      message:
+        "Organization context is required"
     });
   }
 
-  if (typeof id !== "string" || !id) {
+  if (
+    typeof id !== "string" ||
+    !isValidContactId(id)
+  ) {
     return res.status(400).json({
       success: false,
-      message: "A valid contact ID is required"
+      message:
+        "A valid contact ID is required"
     });
   }
 
-  const existingContact =
-    await getContactByIdForOrganization(
-      id,
-      organizationId
+  const validation =
+    validateContactUpdate(
+      req.body
     );
 
-  if (!existingContact) {
-    return res.status(404).json({
+  if (!validation.success) {
+    return res.status(400).json({
       success: false,
-      message: "Contact not found"
+      message:
+        validation.message
     });
   }
 
-  await deleteContactForOrganization(
-    id,
-    organizationId
-  );
+  const result =
+    await updateContactForOrganization(
+      id,
+      organizationId,
+      validation.data
+    );
+
+  if (!result.success) {
+    if (
+      result.reason ===
+      "NOT_FOUND"
+    ) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Contact not found"
+      });
+    }
+
+    if (
+      result.reason ===
+      "IDENTITY_REQUIRED"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "A contact must have a person name or organization name"
+      });
+    }
+
+    if (
+      result.reason ===
+        "INVALID_BRANCH" ||
+      result.reason ===
+        "INVALID_DEPARTMENT" ||
+      result.reason ===
+        "BRANCH_DEPARTMENT_MISMATCH"
+    ) {
+      return handleStructureFailure(
+        result.reason,
+        res
+      );
+    }
+
+    return res.status(400).json({
+      success: false,
+      message:
+        "Unable to update contact"
+    });
+  }
 
   await createAuditLog({
     organizationId,
     userId,
-    action: "CONTACT_DELETED",
-    entityType: "Contact",
-    entityId: existingContact.id,
+    action:
+      "CONTACT_UPDATED",
+    entityType:
+      "Contact",
+    entityId:
+      result.data.id,
 
-    oldValues: {
-      contactType:
-        existingContact.contactType,
-      firstName:
-        existingContact.firstName,
-      lastName:
-        existingContact.lastName,
-      organizationName:
-        existingContact.organizationName,
-      email:
-        existingContact.email,
-      phone:
-        existingContact.phone,
-      status:
-        existingContact.status
-    },
+    oldValues:
+      auditContactValues(
+        result.oldValues
+      ),
+
+    newValues:
+      auditContactValues(
+        result.data
+      ),
 
     ...(req.ip
-      ? { ipAddress: req.ip }
+      ? {
+          ipAddress:
+            req.ip
+        }
       : {}),
 
     ...(req.headers["user-agent"]
@@ -345,6 +479,96 @@ export async function removeContact(
 
   return res.json({
     success: true,
-    message: "Contact deleted successfully"
+    message:
+      "Contact updated successfully",
+    data:
+      result.data
+  });
+}
+
+export async function removeContact(
+  req: Request,
+  res: Response
+) {
+  const {
+    userId,
+    organizationId
+  } = getAuthContext(req);
+
+  const id =
+    req.params.id;
+
+  if (
+    !userId ||
+    !organizationId
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Organization context is required"
+    });
+  }
+
+  if (
+    typeof id !== "string" ||
+    !isValidContactId(id)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "A valid contact ID is required"
+    });
+  }
+
+  const result =
+    await deleteContactForOrganization(
+      id,
+      organizationId
+    );
+
+  if (!result.success) {
+    return res.status(404).json({
+      success: false,
+      message:
+        "Contact not found"
+    });
+  }
+
+  await createAuditLog({
+    organizationId,
+    userId,
+    action:
+      "CONTACT_DELETED",
+    entityType:
+      "Contact",
+    entityId:
+      result.data.id,
+
+    oldValues:
+      auditContactValues(
+        result.data
+      ),
+
+    ...(req.ip
+      ? {
+          ipAddress:
+            req.ip
+        }
+      : {}),
+
+    ...(req.headers["user-agent"]
+      ? {
+          userAgent:
+            req.headers["user-agent"]
+        }
+      : {})
+  });
+
+  return res.json({
+    success: true,
+    message:
+      "Contact deleted successfully",
+    data:
+      result.data
   });
 }
