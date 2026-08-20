@@ -2,12 +2,21 @@ import { Router } from "express";
 
 import {
   addRolePermission,
-  listRolePermissions
+  listRolePermissions,
+  removeRolePermission
 } from "../controllers/rolePermissionController.js";
 
-import { authenticate } from "../middleware/authenticate.js";
-import { organizationContext } from "../middleware/organizationContext.js";
-import { requirePermission } from "../middleware/requirePermission.js";
+import {
+  authenticate
+} from "../middleware/authenticate.js";
+
+import {
+  organizationContext
+} from "../middleware/organizationContext.js";
+
+import {
+  requirePermission
+} from "../middleware/requirePermission.js";
 
 const router = Router();
 
@@ -25,6 +34,14 @@ router.post(
   organizationContext,
   requirePermission("role_permissions.manage"),
   addRolePermission
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  organizationContext,
+  requirePermission("role_permissions.manage"),
+  removeRolePermission
 );
 
 export default router;

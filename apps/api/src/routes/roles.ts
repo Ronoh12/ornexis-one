@@ -3,7 +3,9 @@ import { Router } from "express";
 import {
   addRole,
   getRole,
-  listRoles
+  listRoles,
+  removeRoleController,
+  updateRoleController
 } from "../controllers/roleController.js";
 
 import {
@@ -42,6 +44,22 @@ router.post(
   organizationContext,
   requirePermission("roles.manage"),
   addRole
+);
+
+router.patch(
+  "/:id",
+  authenticate,
+  organizationContext,
+  requirePermission("roles.manage"),
+  updateRoleController
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  organizationContext,
+  requirePermission("roles.manage"),
+  removeRoleController
 );
 
 export default router;
