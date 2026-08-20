@@ -4,12 +4,16 @@ export type CreateOrganizationUserInput = {
   organizationId: string;
   userId: string;
   roleId: string;
+  branchId?: string | null;
+  departmentId?: string | null;
   status?: "INVITED" | "ACTIVE" | "SUSPENDED" | "REMOVED";
   invitedBy?: string;
 };
 
 export type UpdateOrganizationUserInput = {
   roleId?: string;
+  branchId?: string | null;
+  departmentId?: string | null;
   status?: "INVITED" | "ACTIVE" | "SUSPENDED" | "REMOVED";
 };
 
@@ -30,8 +34,95 @@ const organizationUserInclude = {
       updatedAt: true
     }
   },
-  role: true
+  role: true,
+  branch: true,
+  department: {
+    include: {
+      branch: true
+    }
+  }
 } as const;
+
+async function validateStructureAssignment(
+  organizationId: string,
+  branchId: string | null | undefined,
+  departmentId: string | null | undefined
+) {
+  let branch:
+    | Awaited<
+        ReturnType<
+          typeof prisma.branch.findFirst
+        >
+      >
+    | null = null;
+
+  let department:
+    | Awaited<
+        ReturnType<
+          typeof prisma.department.findFirst
+        >
+      >
+    | null = null;
+
+  if (
+    branchId !== undefined &&
+    branchId !== null
+  ) {
+    branch =
+      await prisma.branch.findFirst({
+        where: {
+          id: branchId,
+          organizationId
+        }
+      });
+
+    if (!branch) {
+      return {
+        success: false as const,
+        reason:
+          "INVALID_BRANCH" as const
+      };
+    }
+  }
+
+  if (
+    departmentId !== undefined &&
+    departmentId !== null
+  ) {
+    department =
+      await prisma.department.findFirst({
+        where: {
+          id: departmentId,
+          organizationId
+        }
+      });
+
+    if (!department) {
+      return {
+        success: false as const,
+        reason:
+          "INVALID_DEPARTMENT" as const
+      };
+    }
+  }
+
+  if (
+    branch !== null &&
+    department !== null &&
+    department.branchId !== null &&
+    department.branchId !== branch.id
+  ) {
+    return {
+      success: false as const,
+      reason:
+        "BRANCH_DEPARTMENT_MISMATCH" as const
+    };
+  }
+
+  return {
+    success: true as const
+  };
+}
 
 export async function getOrganizationUsers(
   organizationId: string
@@ -40,7 +131,8 @@ export async function getOrganizationUsers(
     where: {
       organizationId
     },
-    include: organizationUserInclude,
+    include:
+      organizationUserInclude,
     orderBy: {
       createdAt: "desc"
     }
@@ -56,19 +148,22 @@ export async function getOrganizationUserById(
       id,
       organizationId
     },
-    include: organizationUserInclude
+    include:
+      organizationUserInclude
   });
 }
 
 export async function createOrganizationUser(
   data: CreateOrganizationUserInput
 ) {
-  const role = await prisma.role.findFirst({
-    where: {
-      id: data.roleId,
-      organizationId: data.organizationId
-    }
-  });
+  const role =
+    await prisma.role.findFirst({
+      where: {
+        id: data.roleId,
+        organizationId:
+          data.organizationId
+      }
+    });
 
   if (!role) {
     return {
@@ -77,22 +172,53 @@ export async function createOrganizationUser(
     };
   }
 
+  const structureValidation =
+    await validateStructureAssignment(
+      data.organizationId,
+      data.branchId,
+      data.departmentId
+    );
+
+  if (!structureValidation.success) {
+    return structureValidation;
+  }
+
   const membership =
     await prisma.organizationUser.create({
       data: {
-        organizationId: data.organizationId,
-        userId: data.userId,
-        roleId: data.roleId,
-        status: data.status ?? "ACTIVE",
+        organizationId:
+          data.organizationId,
+        userId:
+          data.userId,
+        roleId:
+          data.roleId,
+        ...(data.branchId !== undefined
+          ? {
+              branchId:
+                data.branchId
+            }
+          : {}),
+        ...(data.departmentId !== undefined
+          ? {
+              departmentId:
+                data.departmentId
+            }
+          : {}),
+        status:
+          data.status ?? "ACTIVE",
         joinedAt:
           data.status === "INVITED"
             ? null
             : new Date(),
         ...(data.invitedBy !== undefined
-          ? { invitedBy: data.invitedBy }
+          ? {
+              invitedBy:
+                data.invitedBy
+            }
           : {})
       },
-      include: organizationUserInclude
+      include:
+        organizationUserInclude
     });
 
   return {
@@ -139,7 +265,8 @@ export async function updateOrganizationUser(
   const existingRole =
     await prisma.role.findFirst({
       where: {
-        id: existingMembership.roleId,
+        id:
+          existingMembership.roleId,
         organizationId
       }
     });
@@ -150,7 +277,8 @@ export async function updateOrganizationUser(
 
   const isLeavingAdministratorRole =
     data.roleId !== undefined &&
-    data.roleId !== existingMembership.roleId;
+    data.roleId !==
+      existingMembership.roleId;
 
   const isBecomingInactive =
     data.status !== undefined &&
@@ -168,7 +296,9 @@ export async function updateOrganizationUser(
         organizationId
       );
 
-    if (activeAdministratorCount <= 1) {
+    if (
+      activeAdministratorCount <= 1
+    ) {
       return {
         success: false as const,
         reason:
@@ -194,6 +324,27 @@ export async function updateOrganizationUser(
     }
   }
 
+  const targetBranchId =
+    data.branchId !== undefined
+      ? data.branchId
+      : existingMembership.branchId;
+
+  const targetDepartmentId =
+    data.departmentId !== undefined
+      ? data.departmentId
+      : existingMembership.departmentId;
+
+  const structureValidation =
+    await validateStructureAssignment(
+      organizationId,
+      targetBranchId,
+      targetDepartmentId
+    );
+
+  if (!structureValidation.success) {
+    return structureValidation;
+  }
+
   const membership =
     await prisma.organizationUser.update({
       where: {
@@ -201,21 +352,43 @@ export async function updateOrganizationUser(
       },
       data: {
         ...(data.roleId !== undefined
-          ? { roleId: data.roleId }
+          ? {
+              roleId:
+                data.roleId
+            }
+          : {}),
+
+        ...(data.branchId !== undefined
+          ? {
+              branchId:
+                data.branchId
+            }
+          : {}),
+
+        ...(data.departmentId !== undefined
+          ? {
+              departmentId:
+                data.departmentId
+            }
           : {}),
 
         ...(data.status !== undefined
           ? {
-              status: data.status,
+              status:
+                data.status,
 
               ...(data.status === "ACTIVE" &&
               existingMembership.joinedAt === null
-                ? { joinedAt: new Date() }
+                ? {
+                    joinedAt:
+                      new Date()
+                  }
                 : {})
             }
           : {})
       },
-      include: organizationUserInclude
+      include:
+        organizationUserInclude
     });
 
   return {
@@ -243,17 +416,22 @@ export async function removeOrganizationUser(
     };
   }
 
-  if (existingMembership.status === "REMOVED") {
+  if (
+    existingMembership.status ===
+    "REMOVED"
+  ) {
     return {
       success: false as const,
-      reason: "ALREADY_REMOVED" as const
+      reason:
+        "ALREADY_REMOVED" as const
     };
   }
 
   const existingRole =
     await prisma.role.findFirst({
       where: {
-        id: existingMembership.roleId,
+        id:
+          existingMembership.roleId,
         organizationId
       }
     });
@@ -288,7 +466,8 @@ export async function removeOrganizationUser(
       data: {
         status: "REMOVED"
       },
-      include: organizationUserInclude
+      include:
+        organizationUserInclude
     });
 
   return {

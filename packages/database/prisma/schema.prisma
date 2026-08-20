@@ -160,6 +160,8 @@ model OrganizationUser {
   organizationId String                 @map("organization_id") @db.Uuid
   userId         String                 @map("user_id") @db.Uuid
   roleId         String                 @map("role_id") @db.Uuid
+  branchId       String?                @map("branch_id") @db.Uuid
+  departmentId   String?                @map("department_id") @db.Uuid
   status         OrganizationUserStatus @default(INVITED)
   joinedAt       DateTime?              @map("joined_at")
   invitedBy      String?                @map("invited_by") @db.Uuid
@@ -172,7 +174,12 @@ model OrganizationUser {
 
   role Role @relation(fields: [roleId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
-  inviter          User?             @relation("OrganizationUserInvitedBy", fields: [invitedBy], references: [id], onDelete: SetNull)
+  branch Branch? @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  department Department? @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  inviter User? @relation("OrganizationUserInvitedBy", fields: [invitedBy], references: [id], onDelete: SetNull)
+
   invitationTokens InvitationToken[]
 
   @@unique([organizationId, userId])
@@ -180,6 +187,10 @@ model OrganizationUser {
   @@index([organizationId])
   @@index([userId])
   @@index([roleId])
+  @@index([branchId])
+  @@index([departmentId])
+  @@index([organizationId, branchId])
+  @@index([organizationId, departmentId])
   @@index([status])
   @@map("organization_users")
 }
@@ -350,8 +361,9 @@ model Branch {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  departments  Department[]
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  departments       Department[]
+  organizationUsers OrganizationUser[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -372,8 +384,9 @@ model Department {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  branch       Branch?      @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch            Branch?            @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  organizationUsers OrganizationUser[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
