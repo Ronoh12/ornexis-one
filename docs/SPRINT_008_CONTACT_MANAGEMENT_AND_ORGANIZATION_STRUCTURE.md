@@ -2,7 +2,7 @@
 
 ## Status
 
-IN PROGRESS
+COMPLETE
 
 ---
 
@@ -403,11 +403,11 @@ Sprint 008 is complete when:
 
 ☑ Documentation finalized
 
-☐ Git staged review
+☑ Git staged review
 
-☐ Git commit
+☑ Git commit
 
-☐ Git push
+☑ Git push
 
 ---
 
@@ -428,4 +428,4 @@ extensions.
 
 ## Status
 
-IN PROGRESS
+COMPLETE
