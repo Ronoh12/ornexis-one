@@ -10,7 +10,7 @@ Organization User Structure Assignment
 
 ## Status
 
-IN PROGRESS
+COMPLETE
 
 ---
 
@@ -337,9 +337,9 @@ Memberships may also remain organization-wide with no branch or department assig
 
 ☑ Git staged review
 
-☐ Git commit
+☑ Git commit
 
-☐ Git push
+☑ Git push
 
 ---
 
@@ -370,4 +370,4 @@ This provides reusable organizational context for future functionality including
 
 ## Status
 
-IN PROGRESS
+COMPLETE
