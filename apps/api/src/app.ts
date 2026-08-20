@@ -10,6 +10,8 @@ import rolePermissionsRouter from "./routes/rolePermissions.js";
 import authRouter from "./routes/auth.js";
 import auditLogsRouter from "./routes/auditLogs.js";
 import contactsRouter from "./routes/contacts.js";
+import branchesRouter from "./routes/branches.js";
+import departmentsRouter from "./routes/departments.js";
 
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -28,6 +30,8 @@ app.use("/role-permissions", rolePermissionsRouter);
 app.use("/auth", authRouter);
 app.use("/audit-logs", auditLogsRouter);
 app.use("/contacts", contactsRouter);
+app.use("/branches", branchesRouter);
+app.use("/departments", departmentsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

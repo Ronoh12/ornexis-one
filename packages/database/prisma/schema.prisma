@@ -68,6 +68,8 @@ model Organization {
   auditLogs         AuditLog[]
   settings          OrganizationSetting?
   branding          OrganizationBranding?
+  branches          Branch[]
+  departments       Department[]
 
   @@index([organizationType])
   @@index([status])
@@ -330,4 +332,54 @@ model OrganizationBranding {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("organization_branding")
+}
+
+model Branch {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  code           String?
+  description    String?
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  countyState    String?  @map("county_state")
+  country        String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  departments  Department[]
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, code])
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+  @@map("branches")
+}
+
+model Department {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  branchId       String?  @map("branch_id") @db.Uuid
+  name           String
+  code           String?
+  description    String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch       Branch?      @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, code])
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([branchId])
+  @@index([organizationId, isActive])
+  @@map("departments")
 }
