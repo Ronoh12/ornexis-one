@@ -701,9 +701,9 @@ Before Sprint 005 is closed:
 
 ☑ Git staged review
 
-☐ Git commit
+☑ Git commit
 
-☐ Git push
+☑ Git push
 
 ---
 
@@ -770,4 +770,4 @@ The authorization layer must be:
 
 ## Status
 
-IN PROGRESS
+COMPLETE
