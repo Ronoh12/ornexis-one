@@ -2,7 +2,7 @@
 
 ## Status
 
-IN PROGRESS
+COMPLETE
 
 ---
 
@@ -1377,9 +1377,9 @@ Sprint 010 is complete when:
 
 ☑ Git staged review
 
-☐ Git commit
+☑ Git commit
 
-☐ Git push
+☑ Git push
 
 ---
 
@@ -1443,4 +1443,4 @@ Sprint 010 must not be marked COMPLETE until:
 
 ## Status
 
-IN PROGRESS
+COMPLETE
