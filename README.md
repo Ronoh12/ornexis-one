@@ -18,11 +18,11 @@ industry.
 
 ## Product Status
 
-**Development Status:** Active Development  
-**Completed Baseline:** Sprint 001–010  
-**Roadmap:** Master Implementation Plan v2.0  
-**Architecture:** System Architecture v2.0  
-**Engineering Model:** Engineering Manifesto v2.0  
+**Development Status:** Active Development
+**Completed Baseline:** Sprint 001–010
+**Roadmap:** Master Implementation Plan v2.0
+**Architecture:** System Architecture v2.0
+**Engineering Model:** Engineering Manifesto v2.0
 
 The first ten implementation sprints established the initial platform
 foundation.
@@ -874,9 +874,8 @@ Built by **ORNEXIS Technology Ltd.**
 
 # End of Document
 
-**README Version:** 2.0  
-**Status:** ACTIVE  
+**README Version:** 2.0
+**Status:** ACTIVE
 **Product:** ORNEXIS ONE
 
 © ORNEXIS Technology Ltd.
-
