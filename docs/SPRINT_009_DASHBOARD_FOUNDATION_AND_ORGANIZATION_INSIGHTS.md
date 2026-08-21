@@ -2,7 +2,7 @@
 
 ## Status
 
-IN PROGRESS
+COMPLETE
 
 ---
 
@@ -548,9 +548,9 @@ Sprint 009 is complete when:
 
 ☑ Git staged review
 
-☐ Git commit
+☑ Git commit
 
-☐ Git push
+☑ Git push
 
 ---
 
@@ -584,4 +584,4 @@ introduced by this sprint.
 
 ## Status
 
-IN PROGRESS
+COMPLETE
