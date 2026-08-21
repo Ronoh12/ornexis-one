@@ -12,6 +12,7 @@ import auditLogsRouter from "./routes/auditLogs.js";
 import contactsRouter from "./routes/contacts.js";
 import branchesRouter from "./routes/branches.js";
 import departmentsRouter from "./routes/departments.js";
+import dashboardRouter from "./routes/dashboard.js";
 
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -32,6 +33,7 @@ app.use("/audit-logs", auditLogsRouter);
 app.use("/contacts", contactsRouter);
 app.use("/branches", branchesRouter);
 app.use("/departments", departmentsRouter);
+app.use("/dashboard", dashboardRouter);
 
 app.use(notFound);
 app.use(errorHandler);
