@@ -13,6 +13,7 @@ import contactsRouter from "./routes/contacts.js";
 import branchesRouter from "./routes/branches.js";
 import departmentsRouter from "./routes/departments.js";
 import dashboardRouter from "./routes/dashboard.js";
+import documentsRouter from "./routes/documents.js";
 
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -34,6 +35,7 @@ app.use("/contacts", contactsRouter);
 app.use("/branches", branchesRouter);
 app.use("/departments", departmentsRouter);
 app.use("/dashboard", dashboardRouter);
+app.use("/documents", documentsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

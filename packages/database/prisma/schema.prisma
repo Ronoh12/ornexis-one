@@ -45,6 +45,17 @@ enum ContactStatus {
   ARCHIVED
 }
 
+enum DocumentStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum StorageProvider {
+  LOCAL
+  S3
+  AZURE_BLOB
+}
+
 model Organization {
   id                 String             @id @default(uuid()) @db.Uuid
   name               String
@@ -70,6 +81,7 @@ model Organization {
   branding          OrganizationBranding?
   branches          Branch[]
   departments       Department[]
+  documents         Document[]
 
   @@index([organizationType])
   @@index([status])
@@ -98,6 +110,7 @@ model User {
   refreshSessions     RefreshSession[]
   invitationTokens    InvitationToken[]
   passwordResetTokens PasswordResetToken[]
+  uploadedDocuments   Document[]
 
   @@index([phone])
   @@index([status])
@@ -105,15 +118,14 @@ model User {
 }
 
 model Role {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
   name           String
   description    String?
-  isSystemRole   Boolean  @default(false) @map("is_system_role")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  isSystemRole   Boolean      @default(false) @map("is_system_role")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
   rolePermissions   RolePermission[]
   organizationUsers OrganizationUser[]
@@ -167,15 +179,12 @@ model OrganizationUser {
   invitedBy      String?                @map("invited_by") @db.Uuid
   createdAt      DateTime               @default(now()) @map("created_at")
   updatedAt      DateTime               @updatedAt @map("updated_at")
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
   user User @relation("OrganizationUserMembership", fields: [userId], references: [id], onDelete: Restrict)
 
-  role Role @relation(fields: [roleId, organizationId], references: [id, organizationId], onDelete: Restrict)
-
-  branch Branch? @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
-
+  role       Role        @relation(fields: [roleId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  branch     Branch?     @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
   department Department? @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
   inviter User? @relation("OrganizationUserInvitedBy", fields: [invitedBy], references: [id], onDelete: SetNull)
@@ -216,10 +225,9 @@ model Contact {
   status           ContactStatus @default(ACTIVE)
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  branch       Branch?      @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  department   Department?  @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch           Branch?       @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  department       Department?   @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
   @@index([organizationId])
   @@index([branchId])
@@ -373,6 +381,7 @@ model Branch {
   departments       Department[]
   organizationUsers OrganizationUser[]
   contacts          Contact[]
+  documents         Document[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -397,6 +406,7 @@ model Department {
   branch            Branch?            @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
   organizationUsers OrganizationUser[]
   contacts          Contact[]
+  documents         Document[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -405,4 +415,44 @@ model Department {
   @@index([branchId])
   @@index([organizationId, isActive])
   @@map("departments")
+}
+
+model Document {
+  id               String  @id @default(uuid()) @db.Uuid
+  organizationId   String  @map("organization_id") @db.Uuid
+  branchId         String? @map("branch_id") @db.Uuid
+  departmentId     String? @map("department_id") @db.Uuid
+  uploadedByUserId String  @map("uploaded_by_user_id") @db.Uuid
+
+  title       String
+  description String?
+
+  originalFileName String @map("original_file_name")
+  storedFileName   String @map("stored_file_name")
+
+  storageProvider StorageProvider @default(LOCAL) @map("storage_provider")
+  storageKey      String          @map("storage_key")
+
+  mimeType       String @map("mime_type")
+  fileExtension  String @map("file_extension")
+  sizeBytes      BigInt @map("size_bytes")
+  checksumSha256 String @map("checksum_sha256")
+
+  status DocumentStatus @default(ACTIVE)
+
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch       Branch?      @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  department   Department?  @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  uploadedBy   User         @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, branchId])
+  @@index([organizationId, departmentId])
+  @@index([organizationId, mimeType])
+  @@index([uploadedByUserId])
+  @@index([checksumSha256])
+  @@map("documents")
 }
