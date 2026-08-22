@@ -73,15 +73,19 @@ model Organization {
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  roles             Role[]
-  organizationUsers OrganizationUser[]
-  contacts          Contact[]
-  auditLogs         AuditLog[]
-  settings          OrganizationSetting?
-  branding          OrganizationBranding?
-  branches          Branch[]
-  departments       Department[]
-  documents         Document[]
+  roles              Role[]
+  organizationUsers  OrganizationUser[]
+  contacts           Contact[]
+  auditLogs          AuditLog[]
+  settings           OrganizationSetting?
+  branding           OrganizationBranding?
+  branches           Branch[]
+  departments        Department[]
+  documents          Document[]
+  workItems          WorkItem[]
+  workItemComments   WorkItemComment[]
+  workItemActivities WorkItemActivity[]
+  entityAttachments  EntityAttachment[]
 
   @@index([organizationType])
   @@index([status])
@@ -191,8 +195,19 @@ model OrganizationUser {
 
   invitationTokens InvitationToken[]
 
+  createdWorkItems   WorkItem[] @relation("WorkItemCreatedBy")
+  ownedWorkItems     WorkItem[] @relation("WorkItemOwner")
+  assignedWorkItems  WorkItem[] @relation("WorkItemAssignee")
+  completedWorkItems WorkItem[] @relation("WorkItemCompletedBy")
+
+  workItemComments   WorkItemComment[]  @relation("WorkItemCommentAuthor")
+  workItemActivities WorkItemActivity[] @relation("WorkItemActivityActor")
+
+  createdEntityAttachments EntityAttachment[] @relation("EntityAttachmentAttachedBy")
+
   @@unique([organizationId, userId])
   @@unique([id, userId])
+  @@unique([id, organizationId])
   @@index([organizationId])
   @@index([userId])
   @@index([roleId])
@@ -229,6 +244,9 @@ model Contact {
   branch           Branch?       @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
   department       Department?   @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
+  workItems WorkItem[]
+
+  @@unique([id, organizationId])
   @@index([organizationId])
   @@index([branchId])
   @@index([departmentId])
@@ -382,6 +400,7 @@ model Branch {
   organizationUsers OrganizationUser[]
   contacts          Contact[]
   documents         Document[]
+  workItems         WorkItem[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -407,6 +426,7 @@ model Department {
   organizationUsers OrganizationUser[]
   contacts          Contact[]
   documents         Document[]
+  workItems         WorkItem[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -440,13 +460,15 @@ model Document {
 
   status DocumentStatus @default(ACTIVE)
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  branch       Branch?      @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  department   Department?  @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  uploadedBy   User         @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch            Branch?            @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  department        Department?        @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  uploadedBy        User               @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  entityAttachments EntityAttachment[]
 
+  @@unique([id, organizationId])
   @@index([organizationId])
   @@index([organizationId, status])
   @@index([organizationId, branchId])
@@ -455,4 +477,192 @@ model Document {
   @@index([uploadedByUserId])
   @@index([checksumSha256])
   @@map("documents")
+}
+
+// =========================================================
+// Sprint 011 — Work Management, Collaboration & Accountability
+// =========================================================
+
+enum WorkItemStatus {
+  DRAFT
+  OPEN
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkItemPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+  CRITICAL
+}
+
+enum WorkItemActivityType {
+  CREATED
+  UPDATED
+  OWNER_CHANGED
+  ASSIGNEE_CHANGED
+  PRIORITY_CHANGED
+  DUE_DATE_CHANGED
+  STATUS_CHANGED
+  COMMENT_ADDED
+  ATTACHMENT_ADDED
+  ATTACHMENT_REMOVED
+  COMPLETED
+  CANCELLED
+}
+
+enum EntityAttachmentType {
+  WORK_ITEM
+  CONTACT
+}
+
+model WorkItem {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  branchId     String? @map("branch_id") @db.Uuid
+  departmentId String? @map("department_id") @db.Uuid
+  contactId    String? @map("contact_id") @db.Uuid
+
+  createdByOrganizationUserId String  @map("created_by_organization_user_id") @db.Uuid
+  ownerOrganizationUserId     String? @map("owner_organization_user_id") @db.Uuid
+  assigneeOrganizationUserId  String? @map("assignee_organization_user_id") @db.Uuid
+
+  title       String
+  description String?
+
+  priority WorkItemPriority @default(NORMAL)
+  status   WorkItemStatus   @default(OPEN)
+
+  dueAt       DateTime? @map("due_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  completedByOrganizationUserId String? @map("completed_by_organization_user_id") @db.Uuid
+
+  cancelledAt DateTime? @map("cancelled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  branch Branch? @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  department Department? @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  contact Contact? @relation(fields: [contactId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  createdBy OrganizationUser @relation("WorkItemCreatedBy", fields: [createdByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  owner OrganizationUser? @relation("WorkItemOwner", fields: [ownerOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  assignee OrganizationUser? @relation("WorkItemAssignee", fields: [assigneeOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  completedBy OrganizationUser? @relation("WorkItemCompletedBy", fields: [completedByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  comments   WorkItemComment[]
+  activities WorkItemActivity[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, priority])
+  @@index([organizationId, ownerOrganizationUserId])
+  @@index([organizationId, assigneeOrganizationUserId])
+  @@index([organizationId, branchId])
+  @@index([organizationId, departmentId])
+  @@index([organizationId, contactId])
+  @@index([organizationId, dueAt])
+  @@index([organizationId, createdAt])
+  @@map("work_items")
+}
+
+model WorkItemComment {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  workItemId String @map("work_item_id") @db.Uuid
+
+  authorOrganizationUserId String @map("author_organization_user_id") @db.Uuid
+
+  body String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  workItem WorkItem @relation(fields: [workItemId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  author OrganizationUser @relation("WorkItemCommentAuthor", fields: [authorOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@index([workItemId])
+  @@index([authorOrganizationUserId])
+  @@index([createdAt])
+  @@index([organizationId, workItemId])
+  @@map("work_item_comments")
+}
+
+model WorkItemActivity {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  workItemId String @map("work_item_id") @db.Uuid
+
+  actorOrganizationUserId String? @map("actor_organization_user_id") @db.Uuid
+
+  activityType WorkItemActivityType @map("activity_type")
+
+  oldValues Json? @map("old_values")
+  newValues Json? @map("new_values")
+  metadata  Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  workItem WorkItem @relation(fields: [workItemId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  actor OrganizationUser? @relation("WorkItemActivityActor", fields: [actorOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@index([workItemId])
+  @@index([actorOrganizationUserId])
+  @@index([activityType])
+  @@index([createdAt])
+  @@index([organizationId, workItemId])
+  @@map("work_item_activities")
+}
+
+model EntityAttachment {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  documentId String @map("document_id") @db.Uuid
+
+  entityType EntityAttachmentType @map("entity_type")
+  entityId   String               @map("entity_id") @db.Uuid
+
+  attachedByOrganizationUserId String @map("attached_by_organization_user_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  document Document @relation(fields: [documentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  attachedBy OrganizationUser @relation("EntityAttachmentAttachedBy", fields: [attachedByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, documentId, entityType, entityId])
+  @@index([organizationId])
+  @@index([documentId])
+  @@index([entityType, entityId])
+  @@index([organizationId, entityType, entityId])
+  @@map("entity_attachments")
 }

@@ -18,6 +18,7 @@ import documentsRouter from "./routes/documents.js";
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
+import workItemsRouter from "./routes/workItems.js";
 const app = express();
 
 app.use(express.json());
@@ -36,6 +37,8 @@ app.use("/branches", branchesRouter);
 app.use("/departments", departmentsRouter);
 app.use("/dashboard", dashboardRouter);
 app.use("/documents", documentsRouter);
+
+app.use("/work-items", workItemsRouter);
 
 app.use(notFound);
 app.use(errorHandler);
