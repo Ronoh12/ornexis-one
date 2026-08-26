@@ -1,7 +1,7 @@
-﻿# ORNEXIS ONE — Sprint 012
+# ORNEXIS ONE — Sprint 012
 # Request Centre Foundation
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
 ---
 
@@ -30,33 +30,33 @@ capabilities can later operate.
 
 ## 2. Architectural Principles
 
-☐ Request types are organization-scoped.
+☑ Request types are organization-scoped.
 
-☐ Requests are organization-scoped.
+☑ Requests are organization-scoped.
 
-☐ No organization may access another organization's request data.
+☑ No organization may access another organization's request data.
 
-☐ Request categories are configurable through Request Types.
+☑ Request categories are configurable through Request Types.
 
-☐ Request forms may carry configurable structured data.
+☑ Request forms may carry configurable structured data.
 
-☐ Request lifecycle state is explicit.
+☑ Request lifecycle state is explicit.
 
-☐ Request ownership and assignment use OrganizationUser identities.
+☑ Request ownership and assignment use OrganizationUser identities.
 
-☐ Requests may optionally belong to a branch.
+☑ Requests may optionally belong to a branch.
 
-☐ Requests may optionally belong to a department.
+☑ Requests may optionally belong to a department.
 
-☐ Requests may optionally reference a Contact.
+☑ Requests may optionally reference a Contact.
 
-☐ Requests may carry attachments using the existing EntityAttachment system.
+☑ Requests may carry attachments using the existing EntityAttachment system.
 
-☐ Existing WorkItem infrastructure must be reused where appropriate.
+☑ Existing WorkItem infrastructure must be reused where appropriate.
 
-☐ Workflow and approval engines must remain separate reusable capabilities.
+☑ Workflow and approval engines must remain separate reusable capabilities.
 
-☐ Request Centre must remain industry-neutral.
+☑ Request Centre must remain industry-neutral.
 
 ---
 
@@ -79,29 +79,29 @@ These are examples only and must not be hard-coded.
 
 ### RequestType minimum fields
 
-☐ id
+☑ id
 
-☐ organizationId
+☑ organizationId
 
-☐ name
+☑ name
 
-☐ code
+☑ code
 
-☐ description
+☑ description
 
-☐ formSchema
+☑ formSchema
 
-☐ defaultPriority
+☑ defaultPriority
 
-☐ defaultAssigneeOrganizationUserId
+☑ defaultAssigneeOrganizationUserId
 
-☐ defaultDepartmentId
+☑ defaultDepartmentId
 
-☐ isActive
+☑ isActive
 
-☐ createdAt
+☑ createdAt
 
-☐ updatedAt
+☑ updatedAt
 
 Request type codes must be unique within an organization.
 
@@ -156,45 +156,45 @@ Each Request must contain sufficient operational context to become actionable.
 
 ### Minimum fields
 
-☐ id
+☑ id
 
-☐ organizationId
+☑ organizationId
 
-☐ requestTypeId
+☑ requestTypeId
 
-☐ requestNumber
+☑ requestNumber
 
-☐ requesterOrganizationUserId
+☑ requesterOrganizationUserId
 
-☐ assignedToOrganizationUserId
+☑ assignedToOrganizationUserId
 
-☐ branchId
+☑ branchId
 
-☐ departmentId
+☑ departmentId
 
-☐ contactId
+☑ contactId
 
-☐ title
+☑ title
 
-☐ description
+☑ description
 
-☐ formData
+☑ formData
 
-☐ priority
+☑ priority
 
-☐ status
+☑ status
 
-☐ dueAt
+☑ dueAt
 
-☐ submittedAt
+☑ submittedAt
 
-☐ completedAt
+☑ completedAt
 
-☐ cancelledAt
+☑ cancelledAt
 
-☐ createdAt
+☑ createdAt
 
-☐ updatedAt
+☑ updatedAt
 
 ---
 
@@ -292,11 +292,11 @@ The Request Centre must not create a duplicate file-storage system.
 
 Required operations:
 
-☐ list request attachments
+☑ list request attachments
 
-☐ attach an existing document
+☑ attach an existing document
 
-☐ detach a document
+☑ detach a document
 
 Documents must belong to the active organization.
 
@@ -340,17 +340,17 @@ Requests support comments using a RequestComment model.
 
 Each comment records:
 
-☐ organization
+☑ organization
 
-☐ request
+☑ request
 
-☐ author OrganizationUser
+☑ author OrganizationUser
 
-☐ body
+☑ body
 
-☐ createdAt
+☑ createdAt
 
-☐ updatedAt
+☑ updatedAt
 
 ---
 
@@ -424,25 +424,25 @@ GET /requests should support useful operational filtering.
 
 Target filters:
 
-☐ status
+☑ status
 
-☐ priority
+☑ priority
 
-☐ requestTypeId
+☑ requestTypeId
 
-☐ requesterOrganizationUserId
+☑ requesterOrganizationUserId
 
-☐ assignedToOrganizationUserId
+☑ assignedToOrganizationUserId
 
-☐ branchId
+☑ branchId
 
-☐ departmentId
+☑ departmentId
 
-☐ contactId
+☑ contactId
 
-☐ search
+☑ search
 
-☐ overdue
+☑ overdue
 
 ---
 
@@ -467,29 +467,29 @@ Cross-tenant access must fail safely.
 
 Validation must cover:
 
-☐ UUID fields
+☑ UUID fields
 
-☐ request title
+☑ request title
 
-☐ description
+☑ description
 
-☐ request type
+☑ request type
 
-☐ request priority
+☑ request priority
 
-☐ request status
+☑ request status
 
-☐ assignment
+☑ assignment
 
-☐ organization structure
+☑ organization structure
 
-☐ contact references
+☑ contact references
 
-☐ configurable form data
+☑ configurable form data
 
-☐ comments
+☑ comments
 
-☐ attachment document IDs
+☑ attachment document IDs
 
 ---
 
@@ -569,87 +569,87 @@ Sprint 012 is COMPLETE only when the following are demonstrated.
 
 ### Platform
 
-☐ TypeScript compilation succeeds
+☑ TypeScript compilation succeeds
 
-☐ Prisma schema validates
+☑ Prisma schema validates
 
-☐ Database migrations apply successfully
+☑ Database migrations apply successfully
 
-☐ Database migration status is current
+☑ Database migration status is current
 
 ### Request Types
 
-☐ Request type can be created
+☑ Request type can be created
 
-☐ Request types can be listed
+☑ Request types can be listed
 
-☐ Request type can be retrieved
+☑ Request type can be retrieved
 
-☐ Request type can be updated
+☑ Request type can be updated
 
-☐ Duplicate organization request-type code is rejected
+☑ Duplicate organization request-type code is rejected
 
 ### Requests
 
-☐ Request can be created
+☑ Request can be created
 
-☐ Request can be submitted
+☑ Request can be submitted
 
-☐ Request receives human-readable request number
+☑ Request receives human-readable request number
 
-☐ Requests can be listed
+☑ Requests can be listed
 
-☐ Request can be retrieved
+☑ Request can be retrieved
 
-☐ Request can be updated
+☑ Request can be updated
 
-☐ Request can be assigned
+☑ Request can be assigned
 
-☐ Request status can change
+☑ Request status can change
 
-☐ Request can be completed
+☑ Request can be completed
 
-☐ Request filtering works
+☑ Request filtering works
 
 ### Collaboration
 
-☐ Comment can be added
+☑ Comment can be added
 
-☐ Comments can be listed
+☑ Comments can be listed
 
-☐ Activity history can be listed
+☑ Activity history can be listed
 
 ### Documents
 
-☐ Existing document can be attached
+☑ Existing document can be attached
 
-☐ Request attachments can be listed
+☑ Request attachments can be listed
 
-☐ Attachment can be removed
+☑ Attachment can be removed
 
 ### Security
 
-☐ Authentication is required
+☑ Authentication is required
 
-☐ Organization context is required
+☑ Organization context is required
 
-☐ Permissions are enforced
+☑ Permissions are enforced
 
-☐ Cross-tenant request access is rejected
+☑ Cross-tenant request access is rejected
 
-☐ Foreign organization assignment is rejected
+☑ Foreign organization assignment is rejected
 
-☐ Foreign organization contact is rejected
+☑ Foreign organization contact is rejected
 
-☐ Foreign organization document attachment is rejected
+☑ Foreign organization document attachment is rejected
 
 ### Engineering
 
-☐ git diff --check passes
+☑ git diff --check passes
 
-☐ working tree is clean after final commit
+☑ working tree is clean after final commit
 
-☐ implementation is pushed to origin/main
+☑ implementation is pushed to origin/main
 
 ---
 
@@ -673,4 +673,4 @@ It becomes COMPLETE only after:
 
 # Sprint Status
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
