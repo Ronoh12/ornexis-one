@@ -10,6 +10,7 @@ type OrganizationRequest = Request & {
   auth?: {
     userId: string;
     organizationId?: string;
+    organizationUserId?: string;
   };
 };
 
@@ -58,7 +59,8 @@ export async function organizationContext(
 
   req.auth = {
     userId,
-    organizationId: organizationHeader
+    organizationId: organizationHeader,
+    organizationUserId: membership.id
   };
 
   next();
