@@ -91,6 +91,14 @@ model Organization {
   requestComments    RequestComment[]
   requestActivities  RequestActivity[]
 
+  workflowDefinitions WorkflowDefinition[]
+  workflowStates      WorkflowState[]
+  workflowTransitions WorkflowTransition[]
+  workflowInstances   WorkflowInstance[]
+  workflowHistory     WorkflowHistory[]
+  approvalSteps       ApprovalStep[]
+  approvalDecisions   ApprovalDecision[]
+
   @@index([organizationType])
   @@index([status])
   @@map("organizations")
@@ -213,6 +221,12 @@ model OrganizationUser {
   requestsAssigned            Request[]          @relation("RequestAssignedTo")
   requestCommentsAuthored     RequestComment[]   @relation("RequestCommentAuthor")
   requestActivitiesActed      RequestActivity[]  @relation("RequestActivityActor")
+
+  startedWorkflowInstances   WorkflowInstance[] @relation("WorkflowInstanceStartedBy")
+  completedWorkflowInstances WorkflowInstance[] @relation("WorkflowInstanceCompletedBy")
+  workflowHistoryActions     WorkflowHistory[]  @relation("WorkflowHistoryActor")
+
+  approvalDecisions ApprovalDecision[] @relation("ApprovalDecisionApprover")
 
   @@unique([organizationId, userId])
   @@unique([id, userId])
@@ -869,4 +883,298 @@ model RequestActivity {
   @@index([organizationId, activityType])
   @@index([createdAt])
   @@map("request_activities")
+}
+
+// =========================================================
+// Sprint 013 — Workflow & Approval Engine Foundation
+// =========================================================
+
+model WorkflowDefinition {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  name        String
+  code        String
+  description String?
+
+  entityType String @map("entity_type")
+
+  version Int @default(1)
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  states        WorkflowState[]
+  transitions   WorkflowTransition[]
+  instances     WorkflowInstance[]
+  approvalSteps ApprovalStep[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code, version])
+  @@index([organizationId])
+  @@index([organizationId, entityType])
+  @@index([organizationId, isActive])
+  @@map("workflow_definitions")
+}
+
+model WorkflowState {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  workflowDefinitionId String @map("workflow_definition_id") @db.Uuid
+
+  name String
+  code String
+
+  description String?
+
+  position Int @default(0)
+
+  isInitial  Boolean @default(false) @map("is_initial")
+  isTerminal Boolean @default(false) @map("is_terminal")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  workflowDefinition WorkflowDefinition @relation(fields: [workflowDefinitionId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  outgoingTransitions WorkflowTransition[] @relation("WorkflowTransitionFromState")
+  incomingTransitions WorkflowTransition[] @relation("WorkflowTransitionToState")
+
+  currentInstances WorkflowInstance[] @relation("WorkflowInstanceCurrentState")
+
+  historyFrom   WorkflowHistory[] @relation("WorkflowHistoryFromState")
+  historyTo     WorkflowHistory[] @relation("WorkflowHistoryToState")
+  approvalSteps ApprovalStep[]
+
+  @@unique([id, organizationId])
+  @@unique([workflowDefinitionId, code])
+  @@index([organizationId])
+  @@index([organizationId, workflowDefinitionId])
+  @@index([workflowDefinitionId, position])
+  @@map("workflow_states")
+}
+
+// =========================================================
+// Sprint 013 — Workflow Transition Rules
+// =========================================================
+
+model WorkflowTransition {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  workflowDefinitionId String @map("workflow_definition_id") @db.Uuid
+
+  fromStateId String @map("from_state_id") @db.Uuid
+  toStateId   String @map("to_state_id") @db.Uuid
+
+  name String
+  code String
+
+  description String?
+
+  requiresApproval Boolean @default(false) @map("requires_approval")
+
+  conditionConfig Json? @map("condition_config")
+
+  position Int @default(0)
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  workflowDefinition WorkflowDefinition @relation(fields: [workflowDefinitionId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  fromState WorkflowState @relation("WorkflowTransitionFromState", fields: [fromStateId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  toState WorkflowState @relation("WorkflowTransitionToState", fields: [toStateId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([workflowDefinitionId, code])
+  @@index([organizationId])
+  @@index([organizationId, workflowDefinitionId])
+  @@index([workflowDefinitionId, fromStateId])
+  @@index([workflowDefinitionId, toStateId])
+  @@index([organizationId, isActive])
+  @@map("workflow_transitions")
+}
+
+// =========================================================
+// Sprint 013 — Workflow Runtime / Execution
+// =========================================================
+
+model WorkflowInstance {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  workflowDefinitionId String @map("workflow_definition_id") @db.Uuid
+  currentStateId       String @map("current_state_id") @db.Uuid
+
+  entityType String @map("entity_type")
+  entityId   String @map("entity_id") @db.Uuid
+
+  startedByOrganizationUserId   String? @map("started_by_organization_user_id") @db.Uuid
+  completedByOrganizationUserId String? @map("completed_by_organization_user_id") @db.Uuid
+
+  status String @default("ACTIVE")
+
+  contextData Json? @map("context_data")
+
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  workflowDefinition WorkflowDefinition @relation(fields: [workflowDefinitionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  currentState WorkflowState @relation("WorkflowInstanceCurrentState", fields: [currentStateId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  startedBy OrganizationUser? @relation("WorkflowInstanceStartedBy", fields: [startedByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  completedBy OrganizationUser? @relation("WorkflowInstanceCompletedBy", fields: [completedByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  history           WorkflowHistory[]
+  approvalDecisions ApprovalDecision[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, workflowDefinitionId])
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, status])
+  @@index([organizationId, currentStateId])
+  @@map("workflow_instances")
+}
+
+model WorkflowHistory {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  workflowInstanceId String @map("workflow_instance_id") @db.Uuid
+
+  fromStateId String? @map("from_state_id") @db.Uuid
+  toStateId   String  @map("to_state_id") @db.Uuid
+
+  actorOrganizationUserId String? @map("actor_organization_user_id") @db.Uuid
+
+  action String
+
+  comment String?
+
+  metadata Json?
+
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  workflowInstance WorkflowInstance @relation(fields: [workflowInstanceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  fromState WorkflowState? @relation("WorkflowHistoryFromState", fields: [fromStateId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  toState WorkflowState @relation("WorkflowHistoryToState", fields: [toStateId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  actor OrganizationUser? @relation("WorkflowHistoryActor", fields: [actorOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, workflowInstanceId])
+  @@index([organizationId, occurredAt])
+  @@index([workflowInstanceId, occurredAt])
+  @@map("workflow_history")
+}
+
+// =========================================================
+// Sprint 013 — Approval Engine
+// =========================================================
+
+model ApprovalStep {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  workflowDefinitionId String @map("workflow_definition_id") @db.Uuid
+  workflowStateId      String @map("workflow_state_id") @db.Uuid
+
+  name String
+  code String
+
+  description String?
+
+  position Int @default(0)
+
+  approverType String @map("approver_type")
+
+  approverConfig Json? @map("approver_config")
+
+  minimumApprovals Int @default(1) @map("minimum_approvals")
+
+  allowSelfApproval Boolean @default(false) @map("allow_self_approval")
+
+  isRequired Boolean @default(true) @map("is_required")
+  isActive   Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  workflowDefinition WorkflowDefinition @relation(fields: [workflowDefinitionId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  workflowState WorkflowState @relation(fields: [workflowStateId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  decisions ApprovalDecision[]
+
+  @@unique([id, organizationId])
+  @@unique([workflowDefinitionId, code])
+  @@index([organizationId])
+  @@index([organizationId, workflowDefinitionId])
+  @@index([workflowDefinitionId, workflowStateId])
+  @@index([organizationId, isActive])
+  @@map("approval_steps")
+}
+
+model ApprovalDecision {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  workflowInstanceId String @map("workflow_instance_id") @db.Uuid
+  approvalStepId     String @map("approval_step_id") @db.Uuid
+
+  approverOrganizationUserId String @map("approver_organization_user_id") @db.Uuid
+
+  decision String
+
+  comment String?
+
+  metadata Json?
+
+  decidedAt DateTime @default(now()) @map("decided_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  workflowInstance WorkflowInstance @relation(fields: [workflowInstanceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  approvalStep ApprovalStep @relation(fields: [approvalStepId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  approver OrganizationUser @relation("ApprovalDecisionApprover", fields: [approverOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, workflowInstanceId])
+  @@index([organizationId, approvalStepId])
+  @@index([organizationId, approverOrganizationUserId])
+  @@index([workflowInstanceId, decidedAt])
+  @@map("approval_decisions")
 }
