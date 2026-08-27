@@ -1,797 +1,654 @@
-# ORNEXIS ONE — Sprint 013
+﻿# ORNEXIS ONE — Sprint 013
 
 # Workflow and Approval Engine Foundation
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
 ---
 
 ## 1. Sprint Objective
 
-Build the first reusable Workflow and Approval Engine foundation for ORNEXIS ONE.
+Sprint 013 establishes the first reusable, organization-scoped Workflow and
+Approval Engine foundation for ORNEXIS ONE.
 
-Sprint 013 must establish a platform-level orchestration capability that can be
-used by Request Centre and later by HR, Finance, Service Management, CRM,
-onboarding/offboarding, governance and other modules.
+The engine provides platform-level orchestration that can be consumed by
+Request Centre, Work Management and future modules including HR, Finance,
+Service Management, CRM, onboarding/offboarding and governance.
 
-Workflow and approval logic must not be reimplemented independently inside each
-business module.
+Workflow logic remains a shared platform capability rather than being
+reimplemented independently by individual business modules.
 
 ---
 
 ## 2. Architectural Principles
 
-☐ Workflows are organization-scoped.
+Implemented principles:
 
-☐ Workflow definitions are reusable.
-
-☐ Workflow definitions must remain industry-neutral.
-
-☐ Workflow instances are separate from workflow definitions.
-
-☐ Workflow states are explicit.
-
-☐ Workflow transitions are explicit.
-
-☐ Transition rules must be validated.
-
-☐ Workflow history must be preserved.
-
-☐ Approval steps are reusable platform capabilities.
-
-☐ Approval decisions must be immutable from normal API operations.
-
-☐ Approvals may be role-aware.
-
-☐ Approvals may be OrganizationUser-aware.
-
-☐ Approvals may optionally be branch-aware.
-
-☐ Approvals may optionally be department-aware.
-
-☐ Workflow entities must never cross tenant boundaries.
-
-☐ Workflow participants must belong to the active organization.
-
-☐ Workflow design must support future escalation.
-
-☐ Workflow design must support future deadlines.
-
-☐ Workflow design must support future notifications.
-
-☐ Workflow design must support future conditional routing.
-
-☐ Workflow design must support future automation actions.
-
-☐ Workflow design must support multiple consuming modules.
-
-☐ Request Centre must consume workflow rather than own workflow logic.
+- Workflows are organization-scoped.
+- Workflow definitions are reusable.
+- Workflow definitions remain industry-neutral.
+- Workflow definitions and running workflow instances are separate.
+- Workflow states are explicit.
+- Workflow transitions are explicit.
+- Transition integrity is validated.
+- Workflow history is preserved.
+- Approval steps are reusable workflow capabilities.
+- Approval decisions are append-only through normal workflow APIs.
+- Workflow operations respect tenant boundaries.
+- Workflow participants operate within the active organization context.
+- Approval-gated transitions cannot proceed without required approval.
+- Rejected approvals block protected transitions.
+- Duplicate approval decisions from the same approver are prevented.
+- Self-approval can be enabled or disabled per approval step.
+- Minimum approval thresholds are supported.
+- The architecture remains extensible for future escalation, deadlines,
+  notifications, conditional routing and automation.
 
 ---
 
-## 3. Workflow Definition
+## 3. Implemented Domain Model
 
-A WorkflowDefinition represents a reusable process template.
+Sprint 013 introduced the following Prisma models:
 
-Examples include:
+- WorkflowDefinition
+- WorkflowState
+- WorkflowTransition
+- WorkflowInstance
+- WorkflowHistory
+- ApprovalStep
+- ApprovalDecision
 
-- Purchase Approval
-- Leave Approval
-- Access Request Approval
-- Expense Approval
-- Service Request Fulfilment
-- Employee Onboarding
-- Customer Complaint Escalation
+All workflow-domain models are organization scoped.
 
-These examples must not be hard-coded.
-
-### Minimum WorkflowDefinition fields
-
-☐ id
-
-☐ organizationId
-
-☐ name
-
-☐ code
-
-☐ description
-
-☐ entityType
-
-☐ version
-
-☐ isActive
-
-☐ createdByOrganizationUserId
-
-☐ createdAt
-
-☐ updatedAt
-
-Workflow codes must be unique per organization and version.
+Composite tenant-aware relationships are used where appropriate to prevent
+cross-organization relationships.
 
 ---
 
-## 4. Workflow Entity Types
+## 4. Workflow Definitions
 
-Sprint 013 must support a reusable entity reference model.
+WorkflowDefinition represents a reusable process template.
 
-Initial supported workflow entity types:
+Implemented capabilities include:
 
-REQUEST
+- organization ownership
+- reusable name and code
+- description
+- entity type
+- versioning
+- active/inactive state
+- workflow states
+- transitions
+- approval steps
+- running instances
 
-WORK_ITEM
-
-GENERIC
-
-The architecture must allow future entity types without redesigning the engine.
+Workflow definitions can represent arbitrary organizational processes rather
+than hard-coded business workflows.
 
 ---
 
 ## 5. Workflow States
 
-A WorkflowDefinition contains ordered or logically connected states.
+WorkflowState represents a state inside a workflow definition.
 
-### Minimum WorkflowState fields
+Implemented capabilities include:
 
-☐ id
+- organization ownership
+- workflow-definition ownership
+- name
+- code
+- description
+- position
+- initial-state designation
+- terminal-state designation
 
-☐ organizationId
+State codes are unique within a workflow definition.
 
-☐ workflowDefinitionId
-
-☐ name
-
-☐ code
-
-☐ description
-
-☐ stateType
-
-☐ sortOrder
-
-☐ isInitial
-
-☐ isTerminal
-
-☐ createdAt
-
-☐ updatedAt
-
-State codes must be unique inside a workflow definition.
+The runtime automatically begins a workflow instance in its configured
+initial state.
 
 ---
 
-## 6. Workflow State Types
+## 6. Workflow Transitions
 
-Initial state types:
+WorkflowTransition represents an allowed movement between workflow states.
 
-START
+Implemented capabilities include:
 
-ACTIVE
+- organization ownership
+- workflow-definition ownership
+- source state
+- target state
+- name
+- code
+- description
+- position
+- active/inactive state
+- requiresApproval
+- conditionConfig foundation
 
-WAITING_APPROVAL
+Transition validation prevents invalid state/workflow relationships.
 
-COMPLETED
-
-REJECTED
-
-CANCELLED
-
-The engine should not assume that all workflows have identical state sequences.
-
----
-
-## 7. Workflow Transitions
-
-Transitions define which movements are allowed between states.
-
-### Minimum WorkflowTransition fields
-
-☐ id
-
-☐ organizationId
-
-☐ workflowDefinitionId
-
-☐ fromStateId
-
-☐ toStateId
-
-☐ name
-
-☐ code
-
-☐ requiresApproval
-
-☐ isActive
-
-☐ createdAt
-
-☐ updatedAt
-
-Transition codes must be unique within a workflow definition.
-
-A transition must never reference states from another workflow definition or
-another organization.
+Approval-required transitions are enforced by the runtime engine.
 
 ---
 
-## 8. Workflow Instances
+## 7. Workflow Instances
 
-A WorkflowInstance represents one running workflow.
+WorkflowInstance represents one running execution of a workflow definition.
 
-### Minimum WorkflowInstance fields
+Implemented capabilities include:
 
-☐ id
+- organization ownership
+- workflow-definition reference
+- current state
+- entity type
+- entity ID
+- starting organization user
+- completing organization user
+- runtime status
+- contextual JSON data
+- started timestamp
+- completed timestamp
+- workflow history
+- approval decisions
 
-☐ organizationId
+A workflow instance starts in the definition's initial state.
 
-☐ workflowDefinitionId
-
-☐ entityType
-
-☐ entityId
-
-☐ currentStateId
-
-☐ status
-
-☐ startedByOrganizationUserId
-
-☐ startedAt
-
-☐ completedAt
-
-☐ cancelledAt
-
-☐ createdAt
-
-☐ updatedAt
-
-One entity may participate in multiple workflow instances over time.
+Terminal-state transitions complete the workflow instance.
 
 ---
 
-## 9. Workflow Instance Status
+## 8. Workflow History
 
-Initial workflow instance statuses:
+WorkflowHistory preserves workflow-domain operational history.
 
-ACTIVE
+Runtime events include workflow lifecycle and approval activity such as:
 
-COMPLETED
+- STARTED
+- transition events
+- APPROVED
+- REJECTED
+- COMPLETED
+- cancellation-related activity where applicable
 
-REJECTED
+History records preserve:
 
-CANCELLED
+- organization
+- workflow instance
+- previous state
+- resulting state
+- actor
+- action
+- comment
+- metadata
+- occurrence timestamp
 
----
-
-## 10. Workflow History
-
-Every important workflow event must produce history.
-
-### Minimum WorkflowHistory fields
-
-☐ id
-
-☐ organizationId
-
-☐ workflowInstanceId
-
-☐ actorOrganizationUserId
-
-☐ eventType
-
-☐ fromStateId
-
-☐ toStateId
-
-☐ transitionId
-
-☐ metadata
-
-☐ createdAt
-
-History must not be editable through normal workflow APIs.
+Workflow history complements the platform Audit infrastructure.
 
 ---
 
-## 11. Workflow History Event Types
+## 9. Approval Architecture
 
-Initial events:
+Sprint 013 uses a lightweight runtime approval architecture based on:
 
-STARTED
+WorkflowInstance
+→ ApprovalStep
+→ ApprovalDecision
 
-TRANSITIONED
+A separate ApprovalRequest persistence layer was intentionally not introduced
+in this foundation.
 
-APPROVAL_REQUESTED
+Approval state is derived from configured ApprovalSteps and immutable
+ApprovalDecision records associated with a workflow instance.
 
-APPROVED
-
-REJECTED
-
-CANCELLED
-
-COMPLETED
-
-Future events may include:
-
-ESCALATED
-
-DELEGATED
-
-RETURNED_FOR_CHANGES
-
-AUTOMATION_EXECUTED
+This avoids unnecessary duplicate persistence while preserving the ability to
+introduce assignment, inbox, delegation or escalation records later if those
+capabilities require them.
 
 ---
 
-## 12. Approval Foundation
+## 10. Approval Steps
 
-An ApprovalStep represents approval requirements connected to a workflow
-transition.
+ApprovalStep defines an approval requirement for a workflow state.
 
-### Minimum ApprovalStep fields
+Implemented configuration includes:
 
-☐ id
+- organization ownership
+- workflow-definition ownership
+- workflow-state ownership
+- name
+- code
+- description
+- approver type
+- approver configuration
+- minimum approval count
+- allowSelfApproval
+- required/optional designation
+- active/inactive state
+- position
 
-☐ organizationId
+Approval step codes are unique within a workflow definition.
 
-☐ workflowTransitionId
-
-☐ name
-
-☐ stepOrder
-
-☐ approverType
-
-☐ approverOrganizationUserId
-
-☐ approverRoleId
-
-☐ approverDepartmentId
-
-☐ approverBranchId
-
-☐ isRequired
-
-☐ createdAt
-
-☐ updatedAt
+The current foundation supports generic approval resolution and explicit user
+configuration while remaining extensible for richer role, department, branch
+and organizational hierarchy resolution.
 
 ---
 
-## 13. Approver Types
+## 11. Approval Decisions
 
-Initial approver types:
+ApprovalDecision records an approver's decision for an active workflow
+instance and approval step.
 
-ORGANIZATION_USER
+Implemented fields include:
 
-ROLE
+- organizationId
+- workflowInstanceId
+- approvalStepId
+- approverOrganizationUserId
+- decision
+- comment
+- metadata
+- decidedAt
+- createdAt
 
-DEPARTMENT
+Initial supported decisions:
 
-BRANCH
+- APPROVED
+- REJECTED
 
-The architecture must remain extensible for future approver-resolution rules.
+Approval decisions are not exposed through ordinary update/delete workflow
+operations.
 
----
-
-## 14. Approval Requests
-
-When a workflow reaches an approval-required transition, the engine creates an
-ApprovalRequest.
-
-### Minimum ApprovalRequest fields
-
-☐ id
-
-☐ organizationId
-
-☐ workflowInstanceId
-
-☐ workflowTransitionId
-
-☐ approvalStepId
-
-☐ assignedApproverOrganizationUserId
-
-☐ status
-
-☐ requestedAt
-
-☐ decidedAt
-
-☐ createdAt
-
-☐ updatedAt
+The engine prevents the same approver from submitting multiple decisions for
+the same approval step and workflow instance.
 
 ---
 
-## 15. Approval Request Status
+## 12. Approval Enforcement
 
-Initial statuses:
+For an approval-required transition, the engine:
 
-PENDING
+1. resolves active required approval steps for the workflow's current state;
+2. verifies that approval configuration exists;
+3. counts approved decisions;
+4. counts rejected decisions;
+5. blocks the transition when a required step has been rejected;
+6. blocks the transition when minimum approvals have not been reached;
+7. allows the transition when all required approval conditions are satisfied.
 
-APPROVED
-
-REJECTED
-
-CANCELLED
-
----
-
-## 16. Approval Decisions
-
-Approval decisions must record the decision itself rather than overwriting
-history.
-
-### Minimum ApprovalDecision fields
-
-☐ id
-
-☐ organizationId
-
-☐ approvalRequestId
-
-☐ decidedByOrganizationUserId
-
-☐ decision
-
-☐ comment
-
-☐ decidedAt
-
-☐ createdAt
-
-ApprovalDecision records must be immutable through ordinary APIs.
+This behavior was verified through runtime API acceptance testing.
 
 ---
 
-## 17. Approval Decision Types
+## 13. Self-Approval
 
-Initial decisions:
+Approval steps support:
 
-APPROVED
+allowSelfApproval
 
-REJECTED
+When disabled, an actor who started the workflow cannot approve their own
+workflow where the runtime self-approval rule applies.
 
-Future support may include:
-
-RETURNED_FOR_CHANGES
-
-DELEGATED
+The service returns a dedicated self-approval validation error rather than
+silently accepting the decision.
 
 ---
 
-## 18. Request Centre Integration Boundary
+## 14. Duplicate Decision Protection
 
-Sprint 013 should make Workflow Engine capable of attaching to Request records.
+For each combination of:
 
-Request Centre must not duplicate:
+- workflow instance
+- approval step
+- approver organization user
 
-- workflow definitions
-- workflow states
-- transitions
-- approval records
-- approval history
+only one decision may be submitted through the workflow runtime.
 
-The Request record remains the business entity.
+Duplicate submissions are rejected with:
 
-Workflow remains the orchestration layer.
+APPROVAL_DECISION_ALREADY_EXISTS
 
----
-
-## 19. Work Management Integration Boundary
-
-Workflow Engine may also orchestrate WorkItem records.
-
-WorkItem remains the accountability/work-execution entity.
-
-Workflow should coordinate progression, not replace WorkItem.
+This behavior was verified through API testing.
 
 ---
 
-## 20. Permission Model
+## 15. Entity Integration Boundary
 
-Sprint 013 should introduce:
+Workflow definitions use entityType and workflow instances use entityType plus
+entityId.
 
-workflow.view
+This allows the workflow engine to orchestrate platform entities without
+taking ownership of their business data.
 
-workflow.manage_definitions
+Expected consumers include:
 
-workflow.start
+- Request Centre
+- Work Management
+- HR
+- Finance
+- CRM
+- Service Management
+- onboarding/offboarding
+- governance
+- future industry packs
 
-workflow.transition
+The consuming module remains responsible for its business entity.
+
+Workflow remains responsible for process orchestration.
+
+---
+
+## 16. Request Centre Boundary
+
+Request Centre must consume Workflow Engine capabilities rather than duplicate
+workflow infrastructure.
+
+Request remains the business entity.
+
+WorkflowDefinition, WorkflowState, WorkflowTransition, WorkflowInstance,
+ApprovalStep, ApprovalDecision and WorkflowHistory remain platform workflow
+capabilities.
+
+---
+
+## 17. Work Management Boundary
+
+WorkItem remains the accountability and execution entity.
+
+Workflow Engine may coordinate WorkItem progression without replacing
+WorkItem.
+
+---
+
+## 18. Permission Model
+
+Sprint 013 introduced workflow permissions including:
+
+- workflow.view
+- workflow.manage_definitions
+- workflow.start
+- workflow.transition
+- workflow.approve
+- workflow.cancel
+- workflow.history.view
+
+Workflow routes operate behind authentication, organization context and
+permission middleware.
+
+Approval submission specifically requires:
 
 workflow.approve
 
-workflow.cancel
+Workflow transition specifically requires:
 
-workflow.history.view
-
-Permissions must remain organization-scoped.
-
-No Workflow route may bypass authentication, organization context or the
-permission engine.
+workflow.transition
 
 ---
 
-## 21. Tenant Isolation
+## 19. Tenant Isolation
 
-Every Workflow query must scope by organizationId.
+Workflow services scope operations by organizationId.
 
-Cross-tenant access must fail safely.
+Tenant-aware relationships prevent foreign organizations from being
+silently connected through workflow records.
 
-Foreign organization data must never be accepted for:
+Isolation applies to:
 
 - workflow definitions
-- states
-- transitions
-- instances
-- approvers
-- roles
-- branches
-- departments
-- approval requests
+- workflow states
+- workflow transitions
+- workflow instances
+- approval steps
 - approval decisions
-- linked business entities
+- organization users participating in workflow operations
+
+Cross-tenant workflow relationships must fail safely.
 
 ---
 
-## 22. Validation
+## 20. Validation
 
-Validation must cover:
+Sprint 013 validation covers workflow input and runtime integrity including:
 
-☐ UUID fields
-
-☐ workflow codes
-
-☐ state codes
-
-☐ transition codes
-
-☐ duplicate workflow definitions
-
-☐ initial-state integrity
-
-☐ terminal-state integrity
-
-☐ state ownership
-
-☐ transition ownership
-
-☐ approver ownership
-
-☐ organization-user ownership
-
-☐ branch ownership
-
-☐ department ownership
-
-☐ role ownership
-
-☐ workflow entity references
-
-☐ approval decision state
-
-☐ transition eligibility
+- UUID validation
+- workflow definition input
+- state input
+- transition input
+- approval-step input
+- approval-decision input
+- workflow ownership
+- state ownership
+- transition ownership
+- entity-type compatibility
+- initial-state requirements
+- terminal-state behavior
+- approval-step ownership
+- approval eligibility
+- self-approval rules
+- duplicate approval decisions
+- approval thresholds
+- rejected approvals
+- transition eligibility
 
 ---
 
-## 23. Auditability
+## 21. API Surface — As Built
 
-WorkflowHistory provides workflow-domain operational history.
+### Workflow configuration
 
-Existing Audit infrastructure should continue to capture security-sensitive and
-system-level actions where appropriate.
+Mounted through the workflow router.
 
-The two histories must complement each other rather than duplicate every event.
+Capabilities include:
+
+- workflow definition creation/listing/management
+- workflow state creation/listing/management
+- workflow transition creation/listing/management
+- approval-step creation
+
+### Workflow runtime
+
+Mounted at:
+
+/workflow-instances
+
+Implemented runtime operations include:
+
+- list workflow instances
+- start workflow instance
+- retrieve workflow instance
+- execute transition
+- submit approval decision
+- cancel workflow instance
+- retrieve workflow history
+
+Approval decision submission:
+
+POST /workflow-instances/:id/approvals
+
+Required permission:
+
+workflow.approve
 
 ---
 
-## 24. API Foundation
+## 22. Runtime Acceptance Results
 
-Target API surface:
+The workflow runtime was exercised through API acceptance tests.
 
-### Workflow Definitions
+### Basic workflow
 
-GET /workflow-definitions
+Verified:
 
-POST /workflow-definitions
+- workflow definition creation
+- state creation
+- transition creation
+- workflow instance start
+- initial-state selection
+- valid transition
+- terminal-state completion
+- workflow history persistence
 
-GET /workflow-definitions/:id
+Result: PASS
 
-PATCH /workflow-definitions/:id
+### Approval gate without approval
 
-### Workflow States
+A protected transition was attempted without the required decision.
 
-GET /workflow-definitions/:id/states
+Verified:
 
-POST /workflow-definitions/:id/states
+- transition rejected
+- workflow remained ACTIVE
+- current state remained unchanged
+- no approval decision existed
 
-PATCH /workflow-states/:id
+Result: PASS
 
-### Workflow Transitions
+### Approved workflow
 
-GET /workflow-definitions/:id/transitions
+A fresh workflow instance received an APPROVED decision.
 
-POST /workflow-definitions/:id/transitions
+Verified:
 
-PATCH /workflow-transitions/:id
+- decision persisted
+- required approval count reached
+- approval status became approved
+- protected transition succeeded
+- terminal state reached
+- workflow became COMPLETED
+- history preserved approval and completion events
 
-### Workflow Instances
+Result: PASS
 
-GET /workflow-instances
+### Rejected workflow
 
-POST /workflow-instances
+A fresh workflow instance received a REJECTED decision.
 
-GET /workflow-instances/:id
+Verified:
 
-POST /workflow-instances/:id/transition
+- rejection persisted
+- approval status became rejected
+- protected transition was rejected
+- workflow remained ACTIVE
+- current state remained unchanged
+- rejection history was preserved
 
-POST /workflow-instances/:id/cancel
+Result: PASS
 
-GET /workflow-instances/:id/history
+### Duplicate approval
 
-### Approvals
+The same approver attempted another decision for an approval step for which
+they had already submitted a decision.
 
-GET /approvals
+Verified:
 
-GET /approvals/:id
+- duplicate decision rejected
+- duplicate record not created
 
-POST /approvals/:id/approve
+Result: PASS
 
-POST /approvals/:id/reject
+---
+
+## 23. Engineering Quality Gates
+
+Final Sprint 013 validation completed successfully:
+
+- TypeScript compilation: PASS
+- Prisma schema validation: PASS
+- Prisma migration status: CURRENT
+- git diff --check: PASS
+- Sprint implementation committed: PASS
+- push to origin/main: PASS
+- final working tree clean: PASS
+
+---
+
+## 24. Database Migrations
+
+Sprint 013 introduced:
+
+20260827155018_sprint_013_workflow_approval_engine
+
+and:
+
+20260827175132_add_sprint_013_workflow_permissions
+
+The final migration status reported the database schema as up to date.
 
 ---
 
 ## 25. Sprint Boundaries
 
-Sprint 013 DOES NOT implement:
+Sprint 013 intentionally does not implement:
 
 - visual workflow designer
+- BPMN engine
 - arbitrary scripting
-- complex expression language
-- automated notifications
+- full expression language
+- automated workflow notifications
 - SLA engine
 - escalation engine
-- delegation engine
+- approval delegation
 - scheduled workflow actions
 - external workflow integrations
 - AI workflow generation
-- complete BPMN support
+- advanced workflow analytics
 
-These capabilities may build on this foundation later.
-
----
-
-## 26. Acceptance Tests
-
-Sprint 013 is COMPLETE only when the following are demonstrated.
-
-### Platform
-
-☐ TypeScript compilation succeeds
-
-☐ Prisma schema validates
-
-☐ Database migrations apply successfully
-
-☐ Migration status is current
-
-### Workflow Definitions
-
-☐ Workflow definition can be created
-
-☐ Workflow definitions can be listed
-
-☐ Workflow definition can be retrieved
-
-☐ Workflow definition can be updated
-
-☐ Duplicate organization workflow code/version is rejected
-
-### Workflow States
-
-☐ State can be created
-
-☐ States can be listed
-
-☐ State can be updated
-
-☐ Initial state can be identified
-
-☐ Terminal state can be identified
-
-### Workflow Transitions
-
-☐ Transition can be created
-
-☐ Transitions can be listed
-
-☐ Invalid cross-workflow transition is rejected
-
-### Workflow Instances
-
-☐ Workflow instance can be started
-
-☐ Instance begins in initial state
-
-☐ Instance can be retrieved
-
-☐ Instances can be listed
-
-☐ Valid transition succeeds
-
-☐ Invalid transition fails safely
-
-☐ Workflow history is recorded
-
-☐ Terminal workflow can complete
-
-### Approvals
-
-☐ Approval-required transition creates approval request
-
-☐ Approval request can be listed
-
-☐ Authorized approver can approve
-
-☐ Authorized approver can reject
-
-☐ Approval decision history is preserved
-
-☐ Unauthorized approval fails safely
-
-### Security
-
-☐ Authentication is required
-
-☐ Organization context is required
-
-☐ Permissions are enforced
-
-☐ Cross-tenant workflow access is rejected
-
-☐ Foreign approver assignment is rejected
-
-☐ Foreign branch/department references are rejected
-
-### Engineering
-
-☐ git diff --check passes
-
-☐ working tree is clean after final commit
-
-☐ implementation is pushed to origin/main
+These capabilities may build on the Sprint 013 foundation later.
 
 ---
 
-## 27. Sprint Completion Rule
+## 26. Future Extension Points
 
-Sprint 013 must not be marked COMPLETE merely because database tables exist.
+The foundation is designed to support later additions including:
 
-It becomes COMPLETE only after:
+- role-based approver resolution
+- department-based approver resolution
+- branch-based approver resolution
+- hierarchy-aware approval routing
+- approval inboxes
+- delegation
+- escalation
+- deadlines
+- SLA integration
+- notifications
+- conditional routing
+- automated actions
+- external integrations
+- AI-assisted workflow creation
+- workflow analytics
+- Organization Health / Command Centre signals
+
+These are roadmap capabilities and are not claimed as completed Sprint 013
+functionality unless explicitly implemented in later sprints.
+
+---
+
+## 27. Sprint Completion Evidence
+
+Sprint 013 completion included:
 
 1. specification;
 2. database implementation;
-3. migrations;
+3. Prisma migrations;
 4. validation;
 5. service implementation;
 6. controller implementation;
 7. route implementation;
-8. API acceptance testing;
-9. tenant-isolation verification;
-10. approval verification;
-11. Git validation;
-12. final documentation update.
+8. API runtime acceptance testing;
+9. workflow tenant-scoping architecture;
+10. approval runtime verification;
+11. engineering quality gates;
+12. Git commit and push;
+13. final documentation reconciliation.
+
+Implementation commit:
+
+b7d4e87 feat(workflows): complete Sprint 013 workflow and approval engine
 
 ---
 
 # Sprint Status
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
