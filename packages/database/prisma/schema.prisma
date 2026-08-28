@@ -91,13 +91,15 @@ model Organization {
   requestComments    RequestComment[]
   requestActivities  RequestActivity[]
 
-  workflowDefinitions WorkflowDefinition[]
-  workflowStates      WorkflowState[]
-  workflowTransitions WorkflowTransition[]
-  workflowInstances   WorkflowInstance[]
-  workflowHistory     WorkflowHistory[]
-  approvalSteps       ApprovalStep[]
-  approvalDecisions   ApprovalDecision[]
+  workflowDefinitions     WorkflowDefinition[]
+  workflowStates          WorkflowState[]
+  workflowTransitions     WorkflowTransition[]
+  workflowInstances       WorkflowInstance[]
+  workflowHistory         WorkflowHistory[]
+  approvalSteps           ApprovalStep[]
+  approvalDecisions       ApprovalDecision[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
 
   @@index([organizationType])
   @@index([status])
@@ -226,7 +228,9 @@ model OrganizationUser {
   completedWorkflowInstances WorkflowInstance[] @relation("WorkflowInstanceCompletedBy")
   workflowHistoryActions     WorkflowHistory[]  @relation("WorkflowHistoryActor")
 
-  approvalDecisions ApprovalDecision[] @relation("ApprovalDecisionApprover")
+  approvalDecisions       ApprovalDecision[]       @relation("ApprovalDecisionApprover")
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
 
   @@unique([organizationId, userId])
   @@unique([id, userId])
@@ -1177,4 +1181,73 @@ model ApprovalDecision {
   @@index([organizationId, approverOrganizationUserId])
   @@index([workflowInstanceId, decidedAt])
   @@map("approval_decisions")
+}
+
+//
+// Sprint 014 - Notification Infrastructure Foundation
+//
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+}
+
+model Notification {
+  id                          String               @id @default(uuid()) @db.Uuid
+  organizationId              String               @map("organization_id") @db.Uuid
+  recipientOrganizationUserId String               @map("recipient_organization_user_id") @db.Uuid
+  type                        String
+  title                       String
+  message                     String
+  priority                    NotificationPriority @default(NORMAL)
+  sourceType                  String?              @map("source_type")
+  sourceId                    String?              @map("source_id")
+  actionUrl                   String?              @map("action_url")
+  metadata                    Json?
+  readAt                      DateTime?            @map("read_at")
+  createdAt                   DateTime             @default(now()) @map("created_at")
+  updatedAt                   DateTime             @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  recipient    OrganizationUser @relation(fields: [recipientOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([recipientOrganizationUserId])
+  @@index([organizationId, recipientOrganizationUserId], map: "notifications_org_recipient_idx")
+  @@index([organizationId, recipientOrganizationUserId, readAt], map: "notifications_org_recipient_read_idx")
+  @@index([organizationId, priority])
+  @@index([organizationId, type])
+  @@index([organizationId, sourceType])
+  @@index([sourceType, sourceId])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id                 String              @id @default(uuid()) @db.Uuid
+  organizationId     String              @map("organization_id") @db.Uuid
+  organizationUserId String              @map("organization_user_id") @db.Uuid
+  channel            NotificationChannel
+  enabled            Boolean             @default(true)
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  organizationUser OrganizationUser @relation(fields: [organizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, organizationUserId, channel])
+  @@index([organizationId])
+  @@index([organizationUserId])
+  @@index([organizationId, organizationUserId])
+  @@index([channel])
+  @@map("notification_preferences")
 }

@@ -9,6 +9,10 @@ import {
   createAuditLog
 } from "./auditService.js";
 
+import {
+  createNotification
+} from "./notificationService.js";
+
 export class WorkItemServiceError
   extends Error {
   code: string;
@@ -318,6 +322,65 @@ async function createActivity(
     }
   });
 }
+async function notifyWorkItemAssignment(
+  organizationId: string,
+  workItem: {
+    id: string;
+    title: string;
+    priority: string;
+    dueAt: Date | null;
+  },
+  recipientOrganizationUserId: string
+) {
+  await createNotification({
+    organizationId,
+
+    recipientOrganizationUserId,
+
+    type:
+      "WORK_ITEM_ASSIGNED",
+
+    title:
+      "Work item assigned to you",
+
+    message:
+      `You have been assigned: ${workItem.title}`,
+
+    priority:
+      workItem.priority === "URGENT"
+        ? "CRITICAL"
+        : workItem.priority === "HIGH"
+          ? "HIGH"
+          : "NORMAL",
+
+    sourceType:
+      "WORK_ITEM",
+
+    sourceId:
+      workItem.id,
+
+    actionUrl:
+      `/work-items/${workItem.id}`,
+
+    metadata: {
+      workItemId:
+        workItem.id,
+
+      workItemTitle:
+        workItem.title,
+
+      workItemPriority:
+        workItem.priority,
+
+      ...(workItem.dueAt
+        ? {
+            dueAt:
+              workItem.dueAt.toISOString()
+          }
+        : {})
+    }
+  });
+}
 export async function listWorkItems(
   organizationId: string,
   filters: WorkItemFilters = {}
@@ -496,6 +559,15 @@ export async function createWorkItem(
       priority: workItem.priority
     }
   );
+
+  // WORK_ITEM_CREATE_ASSIGNMENT_NOTIFICATION
+  if (workItem.assigneeOrganizationUserId) {
+    await notifyWorkItemAssignment(
+      input.organizationId,
+      workItem,
+      workItem.assigneeOrganizationUserId
+    );
+  }
 
   await createAuditLog({
     organizationId:
@@ -827,6 +899,15 @@ export async function updateAssignment(
       entityId:
         workItemId
     });
+
+    // WORK_ITEM_ASSIGNEE_CHANGE_NOTIFICATION
+    if (updated.assigneeOrganizationUserId) {
+      await notifyWorkItemAssignment(
+        organizationId,
+        updated,
+        updated.assigneeOrganizationUserId
+      );
+    }
   }
 
   return updated;
