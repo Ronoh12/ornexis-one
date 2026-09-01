@@ -101,10 +101,11 @@ model Organization {
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
 
-  slaPolicies  SlaPolicy[]
-  slaTargets   SlaTarget[]
-  slaInstances SlaInstance[]
-  slaEvents    SlaEvent[]
+  slaPolicies    SlaPolicy[]
+  slaTargets     SlaTarget[]
+  slaInstances   SlaInstance[]
+  slaEvents      SlaEvent[]
+  attentionItems AttentionItem[]
 
   @@index([organizationType])
   @@index([status])
@@ -233,9 +234,10 @@ model OrganizationUser {
   completedWorkflowInstances WorkflowInstance[] @relation("WorkflowInstanceCompletedBy")
   workflowHistoryActions     WorkflowHistory[]  @relation("WorkflowHistoryActor")
 
-  approvalDecisions       ApprovalDecision[]       @relation("ApprovalDecisionApprover")
-  notifications           Notification[]
-  notificationPreferences NotificationPreference[]
+  approvalDecisions         ApprovalDecision[]       @relation("ApprovalDecisionApprover")
+  notifications             Notification[]
+  notificationPreferences   NotificationPreference[]
+  responsibleAttentionItems AttentionItem[]          @relation("AttentionItemResponsible")
 
   @@unique([organizationId, userId])
   @@unique([id, userId])
@@ -435,6 +437,7 @@ model Branch {
   documents         Document[]
   workItems         WorkItem[]
   requests          Request[]
+  attentionItems    AttentionItem[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -463,6 +466,7 @@ model Department {
   workItems           WorkItem[]
   requestTypesDefault RequestType[]      @relation("RequestTypeDefaultDepartment")
   requests            Request[]
+  attentionItems      AttentionItem[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -1409,4 +1413,91 @@ model SlaEvent {
   @@index([organizationId, eventType])
   @@index([organizationId, occurredAt])
   @@map("sla_events")
+}
+
+// ============================================================
+// Sprint 016 — Attention Centre Foundation
+// ============================================================
+
+enum AttentionSignalType {
+  WORK_ITEM_OVERDUE
+  SLA_WARNING
+  SLA_BREACHED
+  SLA_ESCALATED
+  REQUEST_UNASSIGNED
+  APPROVAL_PENDING
+}
+
+enum AttentionSourceType {
+  WORK_ITEM
+  SLA_INSTANCE
+  REQUEST
+  APPROVAL_STEP
+}
+
+enum AttentionSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AttentionItemStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+model AttentionItem {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  signalType AttentionSignalType @map("signal_type")
+  sourceType AttentionSourceType @map("source_type")
+  sourceId   String              @map("source_id") @db.Uuid
+
+  title             String
+  summary           String
+  recommendedAction String? @map("recommended_action")
+
+  severity AttentionSeverity
+  status   AttentionItemStatus @default(OPEN)
+
+  responsibleOrganizationUserId String? @map("responsible_organization_user_id") @db.Uuid
+  branchId                      String? @map("branch_id") @db.Uuid
+  departmentId                  String? @map("department_id") @db.Uuid
+
+  dueAt          DateTime? @map("due_at")
+  detectedAt     DateTime  @default(now()) @map("detected_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  resolvedAt     DateTime? @map("resolved_at")
+  dismissedAt    DateTime? @map("dismissed_at")
+
+  fingerprint String
+  metadata    Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  responsibleOrganizationUser OrganizationUser? @relation("AttentionItemResponsible", fields: [responsibleOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  branch                      Branch?           @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  department                  Department?       @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, fingerprint], map: "attention_items_org_fingerprint_key")
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, severity])
+  @@index([organizationId, signalType])
+  @@index([organizationId, sourceType, sourceId])
+  @@index([organizationId, responsibleOrganizationUserId])
+  @@index([organizationId, branchId])
+  @@index([organizationId, departmentId])
+  @@index([organizationId, dueAt])
+  @@index([organizationId, status, severity])
+  @@index([organizationId, status, dueAt])
+  @@map("attention_items")
 }
