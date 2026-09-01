@@ -101,6 +101,11 @@ model Organization {
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
 
+  slaPolicies  SlaPolicy[]
+  slaTargets   SlaTarget[]
+  slaInstances SlaInstance[]
+  slaEvents    SlaEvent[]
+
   @@index([organizationType])
   @@index([status])
   @@map("organizations")
@@ -1250,4 +1255,158 @@ model NotificationPreference {
   @@index([organizationId, organizationUserId])
   @@index([channel])
   @@map("notification_preferences")
+}
+
+// ============================================================
+// Sprint 015 — SLA, Deadlines & Escalation Foundation
+// ============================================================
+
+enum SlaTargetType {
+  RESPONSE
+  RESOLUTION
+  COMPLETION
+}
+
+enum SlaSourceType {
+  WORK_ITEM
+  REQUEST
+}
+
+enum SlaInstanceStatus {
+  ACTIVE
+  SATISFIED
+  BREACHED
+  CANCELLED
+}
+
+enum SlaEventType {
+  STARTED
+  WARNING
+  BREACHED
+  ESCALATED
+  SATISFIED
+  CANCELLED
+}
+
+model SlaPolicy {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  name        String
+  code        String
+  description String?
+  isActive    Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  targets   SlaTarget[]
+  instances SlaInstance[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+  @@map("sla_policies")
+}
+
+model SlaTarget {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  slaPolicyId    String @map("sla_policy_id") @db.Uuid
+
+  name       String
+  targetType SlaTargetType @map("target_type")
+
+  durationMinutes        Int  @map("duration_minutes")
+  warningMinutesBefore   Int? @map("warning_minutes_before")
+  escalationMinutesAfter Int? @map("escalation_minutes_after")
+
+  notifyOnWarning    Boolean @default(true) @map("notify_on_warning")
+  notifyOnBreach     Boolean @default(true) @map("notify_on_breach")
+  notifyOnEscalation Boolean @default(true) @map("notify_on_escalation")
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  slaPolicy    SlaPolicy    @relation(fields: [slaPolicyId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  instances SlaInstance[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, slaPolicyId])
+  @@index([organizationId, targetType])
+  @@index([organizationId, isActive])
+  @@map("sla_targets")
+}
+
+model SlaInstance {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  slaPolicyId String @map("sla_policy_id") @db.Uuid
+  slaTargetId String @map("sla_target_id") @db.Uuid
+
+  sourceType SlaSourceType @map("source_type")
+  sourceId   String        @map("source_id") @db.Uuid
+
+  status SlaInstanceStatus @default(ACTIVE)
+
+  startedAt   DateTime  @map("started_at")
+  targetAt    DateTime  @map("target_at")
+  satisfiedAt DateTime? @map("satisfied_at")
+  breachedAt  DateTime? @map("breached_at")
+  cancelledAt DateTime? @map("cancelled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  slaPolicy    SlaPolicy    @relation(fields: [slaPolicyId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  slaTarget    SlaTarget    @relation(fields: [slaTargetId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  events SlaEvent[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, slaTargetId, sourceType, sourceId], map: "sla_instances_org_target_source_key")
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, sourceType, sourceId])
+  @@index([organizationId, targetAt])
+  @@index([organizationId, status, targetAt])
+  @@index([organizationId, slaPolicyId])
+  @@index([organizationId, slaTargetId])
+  @@map("sla_instances")
+}
+
+model SlaEvent {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  slaInstanceId  String @map("sla_instance_id") @db.Uuid
+
+  eventType SlaEventType @map("event_type")
+
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  idempotencyKey String @map("idempotency_key")
+
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  slaInstance  SlaInstance  @relation(fields: [slaInstanceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, idempotencyKey], map: "sla_events_org_idempotency_key")
+  @@index([organizationId])
+  @@index([organizationId, slaInstanceId])
+  @@index([organizationId, eventType])
+  @@index([organizationId, occurredAt])
+  @@map("sla_events")
 }

@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 
 import healthRouter from "./routes/health.js";
 import organizationsRouter from "./routes/organizations.js";
@@ -23,6 +23,8 @@ import requestsRouter from "./routes/requests.js";
 import workflowsRouter from "./routes/workflows.js";
 import workflowInstancesRouter from "./routes/workflowInstances.js";
 import notificationsRouter from "./routes/notifications.js";
+import slaRouter from "./routes/sla.js";
+
 const app = express();
 
 app.use(express.json());
@@ -47,6 +49,7 @@ app.use("/requests", requestsRouter);
 app.use("/workflows", workflowsRouter);
 app.use("/workflow-instances", workflowInstancesRouter);
 app.use("/notifications", notificationsRouter);
+app.use("/sla", slaRouter);
 
 app.use(notFound);
 app.use(errorHandler);

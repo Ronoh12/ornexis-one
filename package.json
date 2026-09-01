@@ -7,7 +7,9 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "sla:evaluate": "tsx apps/api/src/jobs/slaEvaluator.ts",
+    "sla:acceptance": "tsx sprint-015-runtime-acceptance.ts"
   },
   "keywords": [],
   "author": "",
