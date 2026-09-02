@@ -2,7 +2,7 @@
 
 Specification: LOCKED
 
-Implementation status: NOT STARTED
+Implementation status: ACCEPTANCE PASSED — 2026-09-01
 
 ## 1. Purpose
 
@@ -388,3 +388,38 @@ supported operational conditions into durable, actionable and idempotent
 attention items without becoming another notification inbox.
 
 Implementation evidence, not this specification alone, determines completion.
+
+---
+
+## 27. Implementation Evidence
+
+Sprint 016 runtime acceptance passed on 2026-09-01.
+
+Verified capabilities:
+
+- tenant-isolated Attention Item persistence
+- deterministic fingerprint idempotency
+- overdue Work Item detection and resolution
+- SLA warning, breach and escalation consumption
+- unassigned Request detection and resolution
+- administrator organization-wide visibility
+- responsible-user scoped visibility
+- Attention Centre RBAC enforcement
+- acknowledgement lifecycle processing
+- dismissal lifecycle processing
+- acknowledgement and dismissal auditing
+- automatic resolution when source conditions clear
+- dismissed items remain terminal
+- resolved items are not incorrectly reopened
+- protected evaluator API
+- reusable evaluator CLI
+- concurrent database-protected uniqueness
+- temporary acceptance fixtures are cleaned successfully
+
+Acceptance command:
+
+`npm run attention:acceptance`
+
+Acceptance result:
+
+`SPRINT 016 RUNTIME ACCEPTANCE: PASS`

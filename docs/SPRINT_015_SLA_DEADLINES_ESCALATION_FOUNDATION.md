@@ -737,3 +737,39 @@ requiring mature Service Desk functionality or scheduler infrastructure.
 
 Implementation evidence, not this specification alone, determines
 completion status.
+
+
+---
+
+## 32. Implementation Evidence
+
+Sprint 015 runtime acceptance passed on 2026-09-01.
+
+Verified capabilities:
+
+- tenant-isolated SLA policies, targets, instances and events
+- deterministic target calculation
+- authenticated SLA API
+- SLA RBAC enforcement
+- cross-tenant source protection
+- warning lifecycle processing
+- breach lifecycle processing
+- escalation lifecycle processing
+- protected evaluator API
+- reusable evaluator CLI
+- warning, breach and escalation notifications
+- deterministic event idempotency
+- repeated evaluator idempotency
+- completed sources satisfy active SLA instances
+- cancelled sources cancel active SLA instances
+- terminal SLA instances are not reprocessed
+- foreign notification recipients are rejected
+- temporary acceptance fixtures are cleaned successfully
+
+Acceptance command:
+
+`npm run sla:acceptance`
+
+Acceptance result:
+
+`SPRINT 015 RUNTIME ACCEPTANCE: PASS`
