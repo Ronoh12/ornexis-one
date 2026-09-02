@@ -101,11 +101,14 @@ model Organization {
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
 
-  slaPolicies    SlaPolicy[]
-  slaTargets     SlaTarget[]
-  slaInstances   SlaInstance[]
-  slaEvents      SlaEvent[]
-  attentionItems AttentionItem[]
+  slaPolicies                SlaPolicy[]
+  slaTargets                 SlaTarget[]
+  slaInstances               SlaInstance[]
+  slaEvents                  SlaEvent[]
+  attentionItems             AttentionItem[]
+  healthIndicatorDefinitions HealthIndicatorDefinition[]
+  healthSnapshots            HealthSnapshot[]
+  healthContributions        HealthContribution[]
 
   @@index([organizationType])
   @@index([status])
@@ -438,6 +441,7 @@ model Branch {
   workItems         WorkItem[]
   requests          Request[]
   attentionItems    AttentionItem[]
+  healthSnapshots   HealthSnapshot[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -467,6 +471,7 @@ model Department {
   requestTypesDefault RequestType[]      @relation("RequestTypeDefaultDepartment")
   requests            Request[]
   attentionItems      AttentionItem[]
+  healthSnapshots     HealthSnapshot[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -1500,4 +1505,124 @@ model AttentionItem {
   @@index([organizationId, status, severity])
   @@index([organizationId, status, dueAt])
   @@map("attention_items")
+}
+
+// ============================================================
+// Sprint 017 — Hierarchical Organization Health Foundation
+// ============================================================
+
+enum HealthScopeType {
+  ORGANIZATION
+  BRANCH
+  DEPARTMENT
+}
+
+enum HealthStatus {
+  HEALTHY
+  WATCH
+  AT_RISK
+  CRITICAL
+}
+
+model HealthIndicatorDefinition {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  code        String
+  name        String
+  description String?
+
+  weight        Decimal @db.Decimal(5, 2)
+  isActive      Boolean @default(true) @map("is_active")
+  configuration Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  contributions HealthContribution[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+  @@map("health_indicator_definitions")
+}
+
+model HealthSnapshot {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  scopeType    HealthScopeType @map("scope_type")
+  branchId     String?         @map("branch_id") @db.Uuid
+  departmentId String?         @map("department_id") @db.Uuid
+
+  score      Int
+  status     HealthStatus
+  confidence Int
+
+  evaluatedAt DateTime @map("evaluated_at")
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+
+  rulesVersion String @map("rules_version")
+  fingerprint  String
+  summary      String
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch       Branch?      @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  department   Department?  @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  contributions HealthContribution[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, fingerprint], map: "health_snapshots_org_fingerprint_key")
+  @@index([organizationId])
+  @@index([organizationId, scopeType])
+  @@index([organizationId, branchId])
+  @@index([organizationId, departmentId])
+  @@index([organizationId, status])
+  @@index([organizationId, evaluatedAt])
+  @@index([organizationId, scopeType, evaluatedAt])
+  @@map("health_snapshots")
+}
+
+model HealthContribution {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  healthSnapshotId            String @map("health_snapshot_id") @db.Uuid
+  healthIndicatorDefinitionId String @map("health_indicator_definition_id") @db.Uuid
+
+  indicatorCode String @map("indicator_code")
+
+  measuredValue        Decimal? @map("measured_value") @db.Decimal(12, 4)
+  sampleSize           Int      @map("sample_size")
+  indicatorScore       Int      @map("indicator_score")
+  weight               Decimal  @db.Decimal(5, 2)
+  weightedContribution Decimal  @map("weighted_contribution") @db.Decimal(8, 4)
+  confidence           Int
+
+  explanation       String
+  recommendedAction String? @map("recommended_action")
+  metadata          Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  healthSnapshot HealthSnapshot @relation(fields: [healthSnapshotId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  healthIndicatorDefinition HealthIndicatorDefinition @relation(fields: [healthIndicatorDefinitionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([healthSnapshotId, healthIndicatorDefinitionId])
+  @@index([organizationId])
+  @@index([organizationId, healthSnapshotId])
+  @@index([organizationId, healthIndicatorDefinitionId])
+  @@index([organizationId, indicatorCode])
+  @@map("health_contributions")
 }
