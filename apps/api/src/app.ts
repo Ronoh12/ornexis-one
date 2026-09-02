@@ -26,6 +26,7 @@ import workflowInstancesRouter from "./routes/workflowInstances.js";
 import notificationsRouter from "./routes/notifications.js";
 import slaRouter from "./routes/sla.js";
 import attentionRouter from "./routes/attention.js";
+import commandCentreRouter from "./routes/commandCentre.js";
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use("/workflow-instances", workflowInstancesRouter);
 app.use("/notifications", notificationsRouter);
 app.use("/sla", slaRouter);
 app.use("/attention-items", attentionRouter);
+app.use("/command-centre", commandCentreRouter);
 
 app.use(notFound);
 app.use(errorHandler);
