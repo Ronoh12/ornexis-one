@@ -109,6 +109,9 @@ model Organization {
   healthIndicatorDefinitions HealthIndicatorDefinition[]
   healthSnapshots            HealthSnapshot[]
   healthContributions        HealthContribution[]
+  kpiCategories              KpiCategory[]
+  kpiDefinitions             KpiDefinition[]
+  kpiMeasurements            KpiMeasurement[]
 
   @@index([organizationType])
   @@index([status])
@@ -241,6 +244,8 @@ model OrganizationUser {
   notifications             Notification[]
   notificationPreferences   NotificationPreference[]
   responsibleAttentionItems AttentionItem[]          @relation("AttentionItemResponsible")
+  ownedKpiDefinitions       KpiDefinition[]          @relation("KpiDefinitionOwner")
+  createdKpiMeasurements    KpiMeasurement[]         @relation("KpiMeasurementCreatedBy")
 
   @@unique([organizationId, userId])
   @@unique([id, userId])
@@ -442,6 +447,8 @@ model Branch {
   requests          Request[]
   attentionItems    AttentionItem[]
   healthSnapshots   HealthSnapshot[]
+  kpiDefinitions    KpiDefinition[]
+  kpiMeasurements   KpiMeasurement[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -472,6 +479,8 @@ model Department {
   requests            Request[]
   attentionItems      AttentionItem[]
   healthSnapshots     HealthSnapshot[]
+  kpiDefinitions      KpiDefinition[]
+  kpiMeasurements     KpiMeasurement[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -1625,4 +1634,188 @@ model HealthContribution {
   @@index([organizationId, healthIndicatorDefinitionId])
   @@index([organizationId, indicatorCode])
   @@map("health_contributions")
+}
+
+// ============================================================
+// Sprint 020 — Configurable KPI Framework Foundation
+// ============================================================
+
+enum KpiDefinitionOrigin {
+  PLATFORM
+  INDUSTRY_PACK
+  ORGANIZATION
+}
+
+enum KpiDataSourceType {
+  MANUAL
+  SYSTEM
+  INTEGRATION
+  DERIVED
+}
+
+enum KpiDirection {
+  HIGHER_IS_BETTER
+  LOWER_IS_BETTER
+  TARGET_RANGE
+}
+
+enum KpiUnit {
+  PERCENTAGE
+  COUNT
+  MINUTES
+  HOURS
+  DAYS
+  CURRENCY
+  NUMBER
+}
+
+enum KpiPeriodType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  CUSTOM
+}
+
+model KpiCategory {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  code         String
+  name         String
+  description  String?
+  displayOrder Int     @default(0) @map("display_order")
+  isActive     Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  definitions  KpiDefinition[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+  @@index([organizationId, displayOrder])
+  @@map("kpi_categories")
+}
+
+model KpiDefinition {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  categoryId String? @map("category_id") @db.Uuid
+
+  code        String
+  name        String
+  description String?
+  module      String?
+
+  origin              KpiDefinitionOrigin @default(ORGANIZATION)
+  dataSourceType      KpiDataSourceType   @map("data_source_type")
+  calculationRuleCode String?             @map("calculation_rule_code")
+
+  scopeType    HealthScopeType @map("scope_type")
+  branchId     String?         @map("branch_id") @db.Uuid
+  departmentId String?         @map("department_id") @db.Uuid
+
+  ownerOrganizationUserId String? @map("owner_organization_user_id") @db.Uuid
+
+  unit      KpiUnit
+  direction KpiDirection
+
+  target            Decimal @db.Decimal(18, 4)
+  warningThreshold  Decimal @map("warning_threshold") @db.Decimal(18, 4)
+  criticalThreshold Decimal @map("critical_threshold") @db.Decimal(18, 4)
+  weight            Decimal @default(1) @db.Decimal(8, 4)
+
+  periodType KpiPeriodType @map("period_type")
+
+  effectiveStart DateTime? @map("effective_start")
+  effectiveEnd   DateTime? @map("effective_end")
+  isActive       Boolean   @default(true) @map("is_active")
+  configuration  Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  category     KpiCategory?      @relation(fields: [categoryId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  branch       Branch?           @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  department   Department?       @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  owner        OrganizationUser? @relation("KpiDefinitionOwner", fields: [ownerOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  measurements KpiMeasurement[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([organizationId, categoryId])
+  @@index([organizationId, scopeType])
+  @@index([organizationId, branchId])
+  @@index([organizationId, departmentId])
+  @@index([organizationId, ownerOrganizationUserId])
+  @@index([organizationId, dataSourceType])
+  @@index([organizationId, isActive])
+  @@map("kpi_definitions")
+}
+
+model KpiMeasurement {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  kpiDefinitionId String @map("kpi_definition_id") @db.Uuid
+
+  scopeType    HealthScopeType @map("scope_type")
+  branchId     String?         @map("branch_id") @db.Uuid
+  departmentId String?         @map("department_id") @db.Uuid
+
+  measuredValue Decimal @map("measured_value") @db.Decimal(18, 4)
+
+  target            Decimal @db.Decimal(18, 4)
+  warningThreshold  Decimal @map("warning_threshold") @db.Decimal(18, 4)
+  criticalThreshold Decimal @map("critical_threshold") @db.Decimal(18, 4)
+
+  unit      KpiUnit
+  direction KpiDirection
+  status    HealthStatus
+
+  sampleSize Int @map("sample_size")
+  confidence Int
+
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+  evaluatedAt DateTime @map("evaluated_at")
+
+  dataSourceType      KpiDataSourceType @map("data_source_type")
+  calculationRuleCode String?           @map("calculation_rule_code")
+  rulesVersion        String            @map("rules_version")
+  fingerprint         String
+
+  explanation       String
+  recommendedAction String? @map("recommended_action")
+  metadata          Json?
+
+  createdByOrganizationUserId String?  @map("created_by_organization_user_id") @db.Uuid
+  createdAt                   DateTime @default(now()) @map("created_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  definition   KpiDefinition     @relation(fields: [kpiDefinitionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  branch       Branch?           @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  department   Department?       @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy    OrganizationUser? @relation("KpiMeasurementCreatedBy", fields: [createdByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, fingerprint], map: "kpi_measurements_org_fingerprint_key")
+  @@index([organizationId])
+  @@index([organizationId, kpiDefinitionId])
+  @@index([organizationId, scopeType])
+  @@index([organizationId, branchId])
+  @@index([organizationId, departmentId])
+  @@index([organizationId, status])
+  @@index([organizationId, periodEnd])
+  @@index([organizationId, kpiDefinitionId, periodEnd])
+  @@map("kpi_measurements")
 }

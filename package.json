@@ -13,9 +13,11 @@
     "attention:evaluate": "tsx apps/api/src/jobs/attentionEvaluator.ts",
     "attention:acceptance": "tsx sprint-016-runtime-acceptance.ts",
     "health:evaluate": "tsx apps/api/src/jobs/healthEvaluator.ts",
+    "kpi:evaluate": "tsx apps/api/src/jobs/kpiEvaluator.ts",
     "health:acceptance": "tsx sprint-017-runtime-acceptance.ts",
     "command:acceptance": "tsx sprint-018-runtime-acceptance.ts",
-    "brief:acceptance": "tsx sprint-019-runtime-acceptance.ts"
+    "brief:acceptance": "tsx sprint-019-runtime-acceptance.ts",
+    "kpi:acceptance": "tsx sprint-020-runtime-acceptance.ts"
   },
   "keywords": [],
   "author": "",
