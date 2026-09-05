@@ -27,6 +27,7 @@ import notificationsRouter from "./routes/notifications.js";
 import slaRouter from "./routes/sla.js";
 import attentionRouter from "./routes/attention.js";
 import commandCentreRouter from "./routes/commandCentre.js";
+import dailyBriefRouter from "./routes/dailyBrief.js";
 
 const app = express();
 
@@ -56,6 +57,7 @@ app.use("/notifications", notificationsRouter);
 app.use("/sla", slaRouter);
 app.use("/attention-items", attentionRouter);
 app.use("/command-centre", commandCentreRouter);
+app.use("/daily-brief", dailyBriefRouter);
 
 app.use(notFound);
 app.use(errorHandler);

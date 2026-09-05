@@ -14,7 +14,8 @@
     "attention:acceptance": "tsx sprint-016-runtime-acceptance.ts",
     "health:evaluate": "tsx apps/api/src/jobs/healthEvaluator.ts",
     "health:acceptance": "tsx sprint-017-runtime-acceptance.ts",
-    "command:acceptance": "tsx sprint-018-runtime-acceptance.ts"
+    "command:acceptance": "tsx sprint-018-runtime-acceptance.ts",
+    "brief:acceptance": "tsx sprint-019-runtime-acceptance.ts"
   },
   "keywords": [],
   "author": "",
