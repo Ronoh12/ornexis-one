@@ -5,6 +5,7 @@ import {
 import {
   deleteOrganizationDocument,
   downloadOrganizationDocument,
+  getDocumentAttachments,
   getOrganizationDocument,
   listOrganizationDocuments,
   updateOrganizationDocument,
@@ -40,6 +41,14 @@ router.get(
     "documents.view"
   ),
   listOrganizationDocuments
+);
+
+router.get(
+  "/:id/attachments",
+  requirePermission(
+    "documents.view"
+  ),
+  getDocumentAttachments
 );
 
 router.get(

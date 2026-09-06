@@ -30,6 +30,14 @@ import {
 } from "../services/auditService.js";
 
 import {
+  listDocumentAttachments
+} from "../services/entityAttachmentService.js";
+
+import {
+  EntityRelationshipServiceError
+} from "../services/entityRelationshipTypes.js";
+
+import {
   defaultDocumentTitle,
   isValidUuid,
   normalizeDescription,
@@ -45,6 +53,7 @@ type AuthenticatedRequest = Request & {
   auth?: {
     userId?: string;
     organizationId?: string;
+    organizationUserId?: string;
   };
 };
 
@@ -986,4 +995,95 @@ export async function deleteOrganizationDocument(
       "Document deleted successfully",
     data: deleted
   });
+}
+
+export async function getDocumentAttachments(
+  req: Request,
+  res: Response
+) {
+  const auth =
+    getAuth(req);
+
+  const documentId =
+    req.params.id;
+
+  if (
+    !auth?.userId ||
+    !auth.organizationId ||
+    !auth.organizationUserId
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Organization membership is required"
+    });
+  }
+
+  if (!isValidUuid(documentId)) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "A valid document ID is required"
+    });
+  }
+
+  try {
+    const attachments =
+      await listDocumentAttachments(
+        {
+          userId:
+            auth.userId,
+          organizationId:
+            auth.organizationId,
+          organizationUserId:
+            auth.organizationUserId
+        },
+        documentId
+      );
+
+    return res.json({
+      success: true,
+      data: attachments
+    });
+  } catch (error) {
+    if (
+      error instanceof
+        EntityRelationshipServiceError
+    ) {
+      if (
+        error.code.includes(
+          "NOT_FOUND"
+        )
+      ) {
+        return res.status(404).json({
+          success: false,
+          message: error.message
+        });
+      }
+
+      if (
+        error.code.includes(
+          "FORBIDDEN"
+        ) ||
+        error.code.includes(
+          "UNASSIGNED"
+        ) ||
+        error.code.includes(
+          "MEMBERSHIP"
+        )
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: error.message
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    throw error;
+  }
 }

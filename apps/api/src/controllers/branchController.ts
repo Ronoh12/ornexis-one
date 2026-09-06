@@ -358,6 +358,17 @@ export async function removeBranch(
       });
     }
 
+    if (
+      result.reason ===
+        "HAS_RELATIONSHIPS"
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Branch cannot be deleted while entity relationships reference it"
+      });
+    }
+
     return res.status(409).json({
       success: false,
       message:

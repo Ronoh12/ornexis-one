@@ -86,7 +86,9 @@ function handleError(
         ? 401
         : (
             error.code ===
-              "MEMBERSHIP_REQUIRED"
+              "MEMBERSHIP_REQUIRED" ||
+            error.code ===
+              "ACCESS_DENIED"
               ? 403
               : 400
           );
@@ -547,6 +549,7 @@ export async function attachments(
     const data =
       await listAttachments(
         organizationId,
+        context(req).userId,
         "WORK_ITEM",
         String(req.params.id)
       );

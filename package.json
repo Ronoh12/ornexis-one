@@ -17,7 +17,8 @@
     "health:acceptance": "tsx sprint-017-runtime-acceptance.ts",
     "command:acceptance": "tsx sprint-018-runtime-acceptance.ts",
     "brief:acceptance": "tsx sprint-019-runtime-acceptance.ts",
-    "kpi:acceptance": "tsx sprint-020-runtime-acceptance.ts"
+    "kpi:acceptance": "tsx sprint-020-runtime-acceptance.ts",
+    "relationships:acceptance": "tsx sprint-021-runtime-acceptance.ts"
   },
   "keywords": [],
   "author": "",

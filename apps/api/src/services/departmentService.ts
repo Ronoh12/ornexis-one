@@ -1,5 +1,10 @@
 import { prisma } from "../../../../packages/database/index.js";
 
+import {
+  countEntityRelationships,
+  EntityType
+} from "./entityRelationshipService.js";
+
 import type {
   CreateDepartmentInput,
   UpdateDepartmentInput
@@ -259,6 +264,25 @@ export async function deleteDepartment(
     return {
       success: false as const,
       reason: "NOT_FOUND" as const
+    };
+  }
+
+  const relationshipCount =
+    await countEntityRelationships(
+      organizationId,
+      {
+        entityType:
+          EntityType.DEPARTMENT,
+        entityId:
+          id
+      }
+    );
+
+  if (relationshipCount > 0) {
+    return {
+      success: false as const,
+      reason:
+        "HAS_RELATIONSHIPS" as const
     };
   }
 

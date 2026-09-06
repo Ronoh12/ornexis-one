@@ -23,6 +23,10 @@ import {
 } from "../services/requestService.js";
 
 import {
+  EntityRelationshipServiceError
+} from "../services/entityRelationshipTypes.js";
+
+import {
   parseAssignmentBody,
   parseAttachmentBody,
   parseCommentBody,
@@ -93,6 +97,36 @@ function handleError(
   res: Response,
   error: unknown
 ) {
+  if (
+    error instanceof
+      EntityRelationshipServiceError
+  ) {
+    const status =
+      error.code.includes(
+        "NOT_FOUND"
+      )
+        ? 404
+        : (
+            error.code.includes(
+              "FORBIDDEN"
+            ) ||
+            error.code.includes(
+              "UNASSIGNED"
+            ) ||
+            error.code.includes(
+              "MEMBERSHIP"
+            )
+              ? 403
+              : 400
+          );
+
+    return res.status(status).json({
+      success: false,
+      message:
+        error.message
+    });
+  }
+
   if (
     error instanceof
       RequestValidationError
@@ -498,13 +532,9 @@ export async function attachments(
   res: Response
 ) {
   try {
-    const {
-      organizationId
-    } = context(req);
-
     const data =
       await listRequestAttachments(
-        organizationId,
+        actor(req),
         String(req.params.id)
       );
 

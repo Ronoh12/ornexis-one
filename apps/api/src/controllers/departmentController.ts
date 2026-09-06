@@ -367,6 +367,17 @@ export async function removeDepartment(
     );
 
   if (!result.success) {
+    if (
+      result.reason ===
+        "HAS_RELATIONSHIPS"
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Department cannot be deleted while entity relationships reference it"
+      });
+    }
+
     return res.status(404).json({
       success: false,
       message:

@@ -73,23 +73,24 @@ model Organization {
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  roles              Role[]
-  organizationUsers  OrganizationUser[]
-  contacts           Contact[]
-  auditLogs          AuditLog[]
-  settings           OrganizationSetting?
-  branding           OrganizationBranding?
-  branches           Branch[]
-  departments        Department[]
-  documents          Document[]
-  workItems          WorkItem[]
-  workItemComments   WorkItemComment[]
-  workItemActivities WorkItemActivity[]
-  entityAttachments  EntityAttachment[]
-  requestTypes       RequestType[]
-  requests           Request[]
-  requestComments    RequestComment[]
-  requestActivities  RequestActivity[]
+  roles               Role[]
+  organizationUsers   OrganizationUser[]
+  contacts            Contact[]
+  auditLogs           AuditLog[]
+  settings            OrganizationSetting?
+  branding            OrganizationBranding?
+  branches            Branch[]
+  departments         Department[]
+  documents           Document[]
+  workItems           WorkItem[]
+  workItemComments    WorkItemComment[]
+  workItemActivities  WorkItemActivity[]
+  entityAttachments   EntityAttachment[]
+  entityRelationships EntityRelationship[]
+  requestTypes        RequestType[]
+  requests            Request[]
+  requestComments     RequestComment[]
+  requestActivities   RequestActivity[]
 
   workflowDefinitions     WorkflowDefinition[]
   workflowStates          WorkflowState[]
@@ -229,12 +230,13 @@ model OrganizationUser {
   workItemComments   WorkItemComment[]  @relation("WorkItemCommentAuthor")
   workItemActivities WorkItemActivity[] @relation("WorkItemActivityActor")
 
-  createdEntityAttachments    EntityAttachment[] @relation("EntityAttachmentAttachedBy")
-  requestTypesDefaultAssignee RequestType[]      @relation("RequestTypeDefaultAssignee")
-  requestsRequested           Request[]          @relation("RequestRequester")
-  requestsAssigned            Request[]          @relation("RequestAssignedTo")
-  requestCommentsAuthored     RequestComment[]   @relation("RequestCommentAuthor")
-  requestActivitiesActed      RequestActivity[]  @relation("RequestActivityActor")
+  createdEntityAttachments    EntityAttachment[]   @relation("EntityAttachmentAttachedBy")
+  createdEntityRelationships  EntityRelationship[] @relation("EntityRelationshipCreatedBy")
+  requestTypesDefaultAssignee RequestType[]        @relation("RequestTypeDefaultAssignee")
+  requestsRequested           Request[]            @relation("RequestRequester")
+  requestsAssigned            Request[]            @relation("RequestAssignedTo")
+  requestCommentsAuthored     RequestComment[]     @relation("RequestCommentAuthor")
+  requestActivitiesActed      RequestActivity[]    @relation("RequestActivityActor")
 
   startedWorkflowInstances   WorkflowInstance[] @relation("WorkflowInstanceStartedBy")
   completedWorkflowInstances WorkflowInstance[] @relation("WorkflowInstanceCompletedBy")
@@ -1818,4 +1820,66 @@ model KpiMeasurement {
   @@index([organizationId, periodEnd])
   @@index([organizationId, kpiDefinitionId, periodEnd])
   @@map("kpi_measurements")
+}
+
+// =========================================================
+// Sprint 021 — Generic Entity Relationship Foundation
+// =========================================================
+
+enum EntityType {
+  ORGANIZATION
+  BRANCH
+  DEPARTMENT
+  ORGANIZATION_USER
+  CONTACT
+  DOCUMENT
+  WORK_ITEM
+  REQUEST
+  WORKFLOW_DEFINITION
+  WORKFLOW_INSTANCE
+}
+
+enum EntityRelationshipType {
+  RELATED_TO
+  DEPENDS_ON
+  BLOCKS
+  SUPPORTS
+  REFERENCES
+  ASSOCIATED_WITH
+  ORIGINATED_FROM
+  FULFILLS
+}
+
+model EntityRelationship {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  sourceType EntityType @map("source_type")
+  sourceId   String     @map("source_id") @db.Uuid
+
+  targetType EntityType @map("target_type")
+  targetId   String     @map("target_id") @db.Uuid
+
+  relationshipType EntityRelationshipType @map("relationship_type")
+
+  canonicalKey String @map("canonical_key")
+
+  description String?
+  metadata    Json?
+
+  createdByOrganizationUserId String   @map("created_by_organization_user_id") @db.Uuid
+  createdAt                   DateTime @default(now()) @map("created_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy    OrganizationUser @relation("EntityRelationshipCreatedBy", fields: [createdByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, canonicalKey], map: "entity_relationships_org_canonical_key")
+  @@index([organizationId])
+  @@index([organizationId, sourceType, sourceId])
+  @@index([organizationId, targetType, targetId])
+  @@index([organizationId, relationshipType])
+  @@index([organizationId, createdAt])
+  @@index([createdByOrganizationUserId])
+  @@map("entity_relationships")
 }

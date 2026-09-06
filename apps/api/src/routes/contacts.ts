@@ -2,7 +2,10 @@ import { Router } from "express";
 
 import {
   addContact,
+  attachContactDocument,
+  detachContactDocument,
   getContact,
+  listContactAttachments,
   listContacts,
   removeContact,
   updateContact
@@ -28,6 +31,30 @@ router.get(
   organizationContext,
   requirePermission("contacts.view"),
   listContacts
+);
+
+router.get(
+  "/:id/attachments",
+  authenticate,
+  organizationContext,
+  requirePermission("contacts.view"),
+  listContactAttachments
+);
+
+router.post(
+  "/:id/attachments",
+  authenticate,
+  organizationContext,
+  requirePermission("contacts.update"),
+  attachContactDocument
+);
+
+router.delete(
+  "/:id/attachments/:attachmentId",
+  authenticate,
+  organizationContext,
+  requirePermission("contacts.update"),
+  detachContactDocument
 );
 
 router.get(

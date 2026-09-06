@@ -29,6 +29,7 @@ import attentionRouter from "./routes/attention.js";
 import commandCentreRouter from "./routes/commandCentre.js";
 import dailyBriefRouter from "./routes/dailyBrief.js";
 import kpisRouter from "./routes/kpis.js";
+import entityRelationshipsRouter from "./routes/entityRelationships.js";
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use("/attention-items", attentionRouter);
 app.use("/command-centre", commandCentreRouter);
 app.use("/daily-brief", dailyBriefRouter);
 app.use("/kpis", kpisRouter);
+app.use("/relationships", entityRelationshipsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

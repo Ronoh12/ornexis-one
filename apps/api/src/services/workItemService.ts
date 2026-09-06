@@ -1,4 +1,22 @@
+import type {
+  Prisma
+} from "../../../../packages/database/generated/client/client.js";
+
+import {
+  EntityAttachmentType
+} from "../../../../packages/database/generated/client/enums.js";
+
 import { prisma } from "../../../../packages/database/index.js";
+
+import {
+  createEntityAttachment,
+  listEntityAttachments,
+  removeEntityAttachment
+} from "./entityAttachmentService.js";
+
+import {
+  EntityRelationshipServiceError
+} from "./entityRelationshipTypes.js";
 
 import type {
   WorkItemPriority,
@@ -299,9 +317,13 @@ async function createActivity(
     | "CANCELLED",
   oldValues?: object,
   newValues?: object,
-  metadata?: object
+  metadata?: object,
+  db:
+    Prisma.TransactionClient |
+    typeof prisma =
+      prisma
 ) {
-  return prisma.workItemActivity.create({
+  return db.workItemActivity.create({
     data: {
       organizationId,
       workItemId,
@@ -1211,35 +1233,27 @@ export async function listActivity(
   });
 }
 
-async function validateDocument(
-  organizationId: string,
-  documentId: string
-) {
-  const document =
-    await prisma.document.findFirst({
-      where: {
-        id: documentId,
-        organizationId,
-        status: "ACTIVE"
-      },
-
-      select: {
-        id: true,
-        title: true,
-        originalFileName: true,
-        mimeType: true,
-        sizeBytes: true
-      }
-    });
-
-  if (!document) {
+function translateAttachmentError(
+  error: unknown
+): never {
+  if (
+    error instanceof
+      EntityRelationshipServiceError
+  ) {
     throw new WorkItemServiceError(
-      "INVALID_DOCUMENT",
-      "Document is not available in this organization"
+      error.code.includes(
+        "FORBIDDEN"
+      ) ||
+      error.code.includes(
+        "UNASSIGNED"
+      )
+        ? "ACCESS_DENIED"
+        : error.code,
+      error.message
     );
   }
 
-  return document;
+  throw error;
 }
 
 export async function attachDocument(
@@ -1250,190 +1264,125 @@ export async function attachDocument(
   entityId: string,
   documentId: string
 ) {
-  const actor =
+  const membership =
     await getActiveOrganizationUser(
       organizationId,
       userId
     );
 
-  if (entityType === "WORK_ITEM") {
-    const workItem =
-      await prisma.workItem.findFirst({
-        where: {
-          id: entityId,
-          organizationId
-        },
-
-        select: {
-          id: true
-        }
-      });
-
-    if (!workItem) {
-      return null;
-    }
-  } else {
-    const contact =
-      await prisma.contact.findFirst({
-        where: {
-          id: entityId,
-          organizationId
-        },
-
-        select: {
-          id: true
-        }
-      });
-
-    if (!contact) {
-      return null;
-    }
-  }
-
-  await validateDocument(
-    organizationId,
-    documentId
-  );
-
-  const attachment =
-    await prisma.entityAttachment.upsert({
-      where: {
-        organizationId_documentId_entityType_entityId: {
+  try {
+    const result =
+      await createEntityAttachment(
+        {
           organizationId,
+          userId,
+          organizationUserId:
+            membership.id
+        },
+        {
+          entityType:
+            entityType ===
+              "WORK_ITEM"
+              ? EntityAttachmentType
+                  .WORK_ITEM
+              : EntityAttachmentType
+                  .CONTACT,
+          entityId,
           documentId,
-          entityType,
-          entityId
+          ...(entityType ===
+          "WORK_ITEM"
+            ? {
+                onCreated:
+                  async (
+                    tx,
+                    attachment
+                  ) =>
+                    createActivity(
+                      organizationId,
+                      entityId,
+                      membership.id,
+                      "ATTACHMENT_ADDED",
+                      undefined,
+                      {
+                        attachmentId:
+                          attachment.id,
+                        documentId:
+                          attachment
+                            .documentId
+                      },
+                      undefined,
+                      tx
+                    )
+              }
+            : {})
         }
-      },
+      );
 
-      update: {},
+    return result.attachment;
+  } catch (error) {
+    if (
+      error instanceof
+        EntityRelationshipServiceError &&
+      error.code ===
+        "RELATIONSHIP_ENTITY_NOT_FOUND"
+    ) {
+      return null;
+    }
 
-      create: {
-        organizationId,
-        documentId,
-        entityType,
-        entityId,
-        attachedByOrganizationUserId:
-          actor.id
-      }
-    });
-
-  if (entityType === "WORK_ITEM") {
-    await createActivity(
-      organizationId,
-      entityId,
-      actor.id,
-      "ATTACHMENT_ADDED",
-      undefined,
-      {
-        attachmentId:
-          attachment.id,
-        documentId
-      }
+    translateAttachmentError(
+      error
     );
   }
-
-  await createAuditLog({
-    organizationId,
-    userId,
-
-    action:
-      entityType === "WORK_ITEM"
-        ? "WORK_ITEM_ATTACHMENT_ADDED"
-        : "CONTACT_ATTACHMENT_ADDED",
-
-    entityType:
-      "EntityAttachment",
-
-    entityId:
-      attachment.id
-  });
-
-  return attachment;
 }
 
 export async function listAttachments(
   organizationId: string,
+  userId: string,
   entityType:
     "WORK_ITEM" | "CONTACT",
   entityId: string
 ) {
-  if (entityType === "WORK_ITEM") {
-    const exists =
-      await prisma.workItem.findFirst({
-        where: {
-          id: entityId,
-          organizationId
-        },
+  const membership =
+    await getActiveOrganizationUser(
+      organizationId,
+      userId
+    );
 
-        select: {
-          id: true
-        }
-      });
-
-    if (!exists) {
-      return null;
-    }
-  } else {
-    const exists =
-      await prisma.contact.findFirst({
-        where: {
-          id: entityId,
-          organizationId
-        },
-
-        select: {
-          id: true
-        }
-      });
-
-    if (!exists) {
-      return null;
-    }
-  }
-
-  const attachments =
-    await prisma.entityAttachment.findMany({
-      where: {
+  try {
+    return await listEntityAttachments(
+      {
         organizationId,
-        entityType,
+        userId,
+        organizationUserId:
+          membership.id
+      },
+      {
+        entityType:
+          entityType ===
+            "WORK_ITEM"
+            ? EntityAttachmentType
+                .WORK_ITEM
+            : EntityAttachmentType
+                .CONTACT,
         entityId
-      },
-
-      orderBy: {
-        createdAt: "desc"
-      },
-
-      include: {
-        document: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            originalFileName: true,
-            mimeType: true,
-            fileExtension: true,
-            sizeBytes: true,
-            status: true,
-            createdAt: true,
-            updatedAt: true
-          }
-        }
       }
-    });
+    );
+  } catch (error) {
+    if (
+      error instanceof
+        EntityRelationshipServiceError &&
+      error.code ===
+        "RELATIONSHIP_ENTITY_NOT_FOUND"
+    ) {
+      return null;
+    }
 
-  return attachments.map(
-    (attachment) => ({
-      ...attachment,
-
-      document: {
-        ...attachment.document,
-        sizeBytes:
-          attachment.document.sizeBytes.toString()
-      }
-    })
-  );
+    translateAttachmentError(
+      error
+    );
+  }
 }
+
 export async function removeAttachment(
   organizationId: string,
   userId: string,
@@ -1442,62 +1391,74 @@ export async function removeAttachment(
   entityId: string,
   attachmentId: string
 ) {
-  const actor =
+  const membership =
     await getActiveOrganizationUser(
       organizationId,
       userId
     );
 
-  const attachment =
-    await prisma.entityAttachment.findFirst({
-      where: {
-        id: attachmentId,
-        organizationId,
-        entityType,
-        entityId
-      }
-    });
-
-  if (!attachment) {
-    return null;
-  }
-
-  await prisma.entityAttachment.delete({
-    where: {
-      id: attachment.id
-    }
-  });
-
-  if (entityType === "WORK_ITEM") {
-    await createActivity(
-      organizationId,
-      entityId,
-      actor.id,
-      "ATTACHMENT_REMOVED",
+  try {
+    return await removeEntityAttachment(
       {
-        attachmentId:
-          attachment.id,
-        documentId:
-          attachment.documentId
+        organizationId,
+        userId,
+        organizationUserId:
+          membership.id
+      },
+      {
+        entityType:
+          entityType ===
+            "WORK_ITEM"
+            ? EntityAttachmentType
+                .WORK_ITEM
+            : EntityAttachmentType
+                .CONTACT,
+        entityId,
+        attachmentId,
+        ...(entityType ===
+        "WORK_ITEM"
+          ? {
+              onRemoved:
+                async (
+                  tx,
+                  attachment
+                ) =>
+                  createActivity(
+                    organizationId,
+                    entityId,
+                    membership.id,
+                    "ATTACHMENT_REMOVED",
+                    {
+                      attachmentId:
+                        attachment.id,
+                      documentId:
+                        attachment
+                          .documentId
+                    },
+                    undefined,
+                    undefined,
+                    tx
+                  )
+            }
+          : {})
       }
     );
+  } catch (error) {
+    if (
+      error instanceof
+        EntityRelationshipServiceError &&
+      (
+        error.code ===
+          "ATTACHMENT_NOT_FOUND" ||
+        error.code ===
+          "RELATIONSHIP_ENTITY_NOT_FOUND"
+      )
+    ) {
+      return null;
+    }
+
+    translateAttachmentError(
+      error
+    );
   }
-
-  await createAuditLog({
-    organizationId,
-    userId,
-
-    action:
-      entityType === "WORK_ITEM"
-        ? "WORK_ITEM_ATTACHMENT_REMOVED"
-        : "CONTACT_ATTACHMENT_REMOVED",
-
-    entityType:
-      "EntityAttachment",
-
-    entityId:
-      attachment.id
-  });
-
-  return attachment;
 }

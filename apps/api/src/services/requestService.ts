@@ -3,6 +3,7 @@ import {
 } from "../../../../packages/database/generated/client/client.js";
 
 import {
+  EntityAttachmentType,
   RequestActivityType,
   RequestPriority,
   RequestStatus
@@ -11,6 +12,16 @@ import {
 import {
   prisma
 } from "../../../../packages/database/index.js";
+
+import {
+  createEntityAttachment,
+  listEntityAttachments,
+  removeEntityAttachment
+} from "./entityAttachmentService.js";
+
+import {
+  EntityRelationshipServiceError
+} from "./entityRelationshipTypes.js";
 
 import type {
   AddRequestCommentInput,
@@ -27,6 +38,7 @@ import type {
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
 type RequestActor = {
+  userId: string;
   organizationId: string;
   organizationUserId: string;
 };
@@ -1160,38 +1172,17 @@ export async function listRequestActivities(
    REQUEST ATTACHMENTS
 ============================================================ */
 
-async function ensureRequestDocument(
-  organizationId: string,
-  documentId: string
-) {
-  const document =
-    await prisma.document.findFirst({
-      where: {
-        id: documentId,
-        organizationId,
-        status: "ACTIVE"
-      },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        originalFileName: true,
-        mimeType: true,
-        fileExtension: true,
-        sizeBytes: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true
-      }
-    });
-
-  if (!document) {
-    throw new Error(
-      "Document is not available in this organization"
-    );
+function translateRequestAttachmentError(
+  error: unknown
+): never {
+  if (
+    error instanceof
+      EntityRelationshipServiceError
+  ) {
+    throw error;
   }
 
-  return document;
+  throw error;
 }
 
 export async function attachRequestDocument(
@@ -1199,111 +1190,67 @@ export async function attachRequestDocument(
   requestId: string,
   documentId: string
 ) {
-  await ensureRequest(
-    prisma,
-    actor.organizationId,
-    requestId
-  );
-
-  await ensureRequestDocument(
-    actor.organizationId,
-    documentId
-  );
-
-  return prisma.$transaction(async (tx) => {
-    const attachment =
-      await tx.entityAttachment.upsert({
-        where: {
-          organizationId_documentId_entityType_entityId: {
-            organizationId:
-              actor.organizationId,
-            documentId,
-            entityType: "REQUEST",
-            entityId: requestId
-          }
-        },
-
-        update: {},
-
-        create: {
-          organizationId:
-            actor.organizationId,
+  try {
+    const result =
+      await createEntityAttachment(
+        actor,
+        {
+          entityType:
+            EntityAttachmentType.REQUEST,
+          entityId:
+            requestId,
           documentId,
-          entityType: "REQUEST",
-          entityId: requestId,
-          attachedByOrganizationUserId:
-            actor.organizationUserId
+          onCreated:
+            async (
+              tx,
+              attachment
+            ) =>
+              createActivity(
+                tx,
+                actor,
+                requestId,
+                RequestActivityType
+                  .ATTACHMENT_ADDED,
+                {
+                  metadata: {
+                    attachmentId:
+                      attachment.id,
+                    documentId:
+                      attachment
+                        .documentId
+                  }
+                }
+              )
         }
-      });
+      );
 
-    await createActivity(
-      tx,
-      actor,
-      requestId,
-      RequestActivityType.ATTACHMENT_ADDED,
-      {
-        metadata: {
-          attachmentId: attachment.id,
-          documentId
-        }
-      }
+    return result.attachment;
+  } catch (error) {
+    translateRequestAttachmentError(
+      error
     );
-
-    return attachment;
-  });
+  }
 }
 
 export async function listRequestAttachments(
-  organizationId: string,
+  actor: RequestActor,
   requestId: string
 ) {
-  await ensureRequest(
-    prisma,
-    organizationId,
-    requestId
-  );
-
-  const attachments =
-    await prisma.entityAttachment.findMany({
-      where: {
-        organizationId,
-        entityType: "REQUEST",
-        entityId: requestId
-      },
-
-      orderBy: {
-        createdAt: "desc"
-      },
-
-      include: {
-        document: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            originalFileName: true,
-            mimeType: true,
-            fileExtension: true,
-            sizeBytes: true,
-            status: true,
-            createdAt: true,
-            updatedAt: true
-          }
-        }
+  try {
+    return await listEntityAttachments(
+      actor,
+      {
+        entityType:
+          EntityAttachmentType.REQUEST,
+        entityId:
+          requestId
       }
-    });
-
-  return attachments.map(
-    (attachment) => ({
-      ...attachment,
-
-      document: {
-        ...attachment.document,
-        sizeBytes:
-          attachment.document.sizeBytes.toString()
-      }
-    })
-  );
+    );
+  } catch (error) {
+    translateRequestAttachmentError(
+      error
+    );
+  }
 }
 
 export async function removeRequestAttachment(
@@ -1311,51 +1258,41 @@ export async function removeRequestAttachment(
   requestId: string,
   attachmentId: string
 ) {
-  await ensureRequest(
-    prisma,
-    actor.organizationId,
-    requestId
-  );
-
-  return prisma.$transaction(async (tx) => {
-    const attachment =
-      await tx.entityAttachment.findFirst({
-        where: {
-          id: attachmentId,
-          organizationId:
-            actor.organizationId,
-          entityType: "REQUEST",
-          entityId: requestId
-        }
-      });
-
-    if (!attachment) {
-      throw new Error(
-        "Request attachment not found"
-      );
-    }
-
-    await tx.entityAttachment.delete({
-      where: {
-        id: attachment.id
-      }
-    });
-
-    await createActivity(
-      tx,
+  try {
+    return await removeEntityAttachment(
       actor,
-      requestId,
-      RequestActivityType.ATTACHMENT_REMOVED,
       {
-        metadata: {
-          attachmentId:
-            attachment.id,
-          documentId:
-            attachment.documentId
-        }
+        entityType:
+          EntityAttachmentType.REQUEST,
+        entityId:
+          requestId,
+        attachmentId,
+        onRemoved:
+          async (
+            tx,
+            attachment
+          ) =>
+            createActivity(
+              tx,
+              actor,
+              requestId,
+              RequestActivityType
+                .ATTACHMENT_REMOVED,
+              {
+                metadata: {
+                  attachmentId:
+                    attachment.id,
+                  documentId:
+                    attachment
+                      .documentId
+                }
+              }
+            )
       }
     );
-
-    return attachment;
-  });
+  } catch (error) {
+    translateRequestAttachmentError(
+      error
+    );
+  }
 }

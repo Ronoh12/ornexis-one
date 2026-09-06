@@ -16,6 +16,20 @@ import {
 } from "../services/auditService.js";
 
 import {
+  createEntityAttachment,
+  listEntityAttachments,
+  removeEntityAttachment
+} from "../services/entityAttachmentService.js";
+
+import {
+  EntityRelationshipServiceError
+} from "../services/entityRelationshipTypes.js";
+
+import {
+  EntityAttachmentType
+} from "../../../../packages/database/generated/client/enums.js";
+
+import {
   isValidContactId,
   validateContactCreate,
   validateContactFilters,
@@ -26,6 +40,7 @@ type AuthenticatedRequest = Request & {
   auth?: {
     userId?: string;
     organizationId?: string;
+    organizationUserId?: string;
   };
 };
 
@@ -39,7 +54,9 @@ function getAuthContext(
     userId:
       auth?.userId,
     organizationId:
-      auth?.organizationId
+      auth?.organizationId,
+    organizationUserId:
+      auth?.organizationUserId
   };
 }
 
@@ -527,6 +544,17 @@ export async function removeContact(
     );
 
   if (!result.success) {
+    if (
+      result.reason ===
+        "HAS_RELATIONSHIPS"
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Contact cannot be deleted while entity relationships reference it"
+      });
+    }
+
     return res.status(404).json({
       success: false,
       message:
@@ -571,4 +599,319 @@ export async function removeContact(
     data:
       result.data
   });
+}
+
+function handleContactAttachmentError(
+  error: unknown,
+  res: Response
+) {
+  if (
+    error instanceof
+      EntityRelationshipServiceError
+  ) {
+    const code =
+      error.code;
+
+    if (
+      code.includes(
+        "NOT_FOUND"
+      )
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    if (
+      code.includes(
+        "FORBIDDEN"
+      ) ||
+      code.includes(
+        "UNASSIGNED"
+      ) ||
+      code.includes(
+        "MEMBERSHIP"
+      )
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+
+  throw error;
+}
+
+function contactAttachmentActor(
+  req: Request
+) {
+  const {
+    userId,
+    organizationId,
+    organizationUserId
+  } = getAuthContext(req);
+
+  if (
+    !userId ||
+    !organizationId ||
+    !organizationUserId
+  ) {
+    return null;
+  }
+
+  return {
+    userId,
+    organizationId,
+    organizationUserId
+  };
+}
+
+function attachmentDocumentId(
+  body: unknown
+) {
+  if (
+    typeof body !==
+      "object" ||
+    body === null ||
+    Array.isArray(body)
+  ) {
+    return null;
+  }
+
+  const value =
+    body as Record<
+      string,
+      unknown
+    >;
+
+  if (
+    Object.keys(value).length !==
+      1 ||
+    typeof value.documentId !==
+      "string" ||
+    !isValidContactId(
+      value.documentId
+    )
+  ) {
+    return null;
+  }
+
+  return value.documentId;
+}
+
+export async function listContactAttachments(
+  req: Request,
+  res: Response
+) {
+  const actor =
+    contactAttachmentActor(req);
+
+  const contactId =
+    req.params.id;
+
+  if (!actor) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Organization membership is required"
+    });
+  }
+
+  if (
+    typeof contactId !==
+      "string" ||
+    !isValidContactId(
+      contactId
+    )
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "A valid contact ID is required"
+    });
+  }
+
+  try {
+    const attachments =
+      await listEntityAttachments(
+        actor,
+        {
+          entityType:
+            EntityAttachmentType
+              .CONTACT,
+          entityId:
+            contactId
+        }
+      );
+
+    return res.json({
+      success: true,
+      data: attachments
+    });
+  } catch (error) {
+    return handleContactAttachmentError(
+      error,
+      res
+    );
+  }
+}
+
+export async function attachContactDocument(
+  req: Request,
+  res: Response
+) {
+  const actor =
+    contactAttachmentActor(req);
+
+  const contactId =
+    req.params.id;
+
+  const documentId =
+    attachmentDocumentId(
+      req.body
+    );
+
+  if (!actor) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Organization membership is required"
+    });
+  }
+
+  if (
+    typeof contactId !==
+      "string" ||
+    !isValidContactId(
+      contactId
+    )
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "A valid contact ID is required"
+    });
+  }
+
+  if (!documentId) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Exactly one valid documentId is required"
+    });
+  }
+
+  try {
+    const result =
+      await createEntityAttachment(
+        actor,
+        {
+          entityType:
+            EntityAttachmentType
+              .CONTACT,
+          entityId:
+            contactId,
+          documentId
+        }
+      );
+
+    return res.status(
+      result.created
+        ? 201
+        : 200
+    ).json({
+      success: true,
+      data:
+        result.attachment,
+      created:
+        result.created
+    });
+  } catch (error) {
+    return handleContactAttachmentError(
+      error,
+      res
+    );
+  }
+}
+
+export async function detachContactDocument(
+  req: Request,
+  res: Response
+) {
+  const actor =
+    contactAttachmentActor(req);
+
+  const contactId =
+    req.params.id;
+
+  const attachmentId =
+    req.params.attachmentId;
+
+  if (!actor) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Organization membership is required"
+    });
+  }
+
+  if (
+    typeof contactId !==
+      "string" ||
+    !isValidContactId(
+      contactId
+    )
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "A valid contact ID is required"
+    });
+  }
+
+  if (
+    typeof attachmentId !==
+      "string" ||
+    !isValidContactId(
+      attachmentId
+    )
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "A valid attachment ID is required"
+    });
+  }
+
+  try {
+    const attachment =
+      await removeEntityAttachment(
+        actor,
+        {
+          entityType:
+            EntityAttachmentType
+              .CONTACT,
+          entityId:
+            contactId,
+          attachmentId
+        }
+      );
+
+    return res.json({
+      success: true,
+      data: attachment
+    });
+  } catch (error) {
+    return handleContactAttachmentError(
+      error,
+      res
+    );
+  }
 }
