@@ -758,3 +758,75 @@ Sprint 022 is complete only when:
 - the work is committed and pushed
 
 Implementation evidence, not this specification alone, determines completion.
+
+---
+
+## 34. Implementation Evidence
+
+Sprint 022 runtime acceptance passed on 2026-09-11.
+
+Verified capabilities:
+
+- `hierarchy.view`, `hierarchy.manage`, `hierarchy.assign` and `hierarchy.reconcile` RBAC
+- authenticated and organization-context-protected hierarchy access
+- active organization-membership enforcement
+- tenant-isolated hierarchy persistence and reconciliation
+- configurable organizational unit-type lifecycle
+- reserved `BRANCH` and `DEPARTMENT` compatibility types
+- configurable organizational unit lifecycle
+- multiple hierarchy roots
+- arbitrary-depth parent-child hierarchy
+- deterministic ancestor ordering
+- deterministic depth-first descendant traversal
+- normalized sibling-identity enforcement
+- self-parent rejection
+- direct and indirect cycle prevention
+- maximum hierarchy-depth enforcement
+- active-parent and active-child safeguards
+- tenant-scoped advisory mutation locking
+- safe concurrent parent mutation
+- database-backed cycle prevention
+- multiple organization-user unit assignments
+- assignment roles and labels
+- one active primary assignment
+- effective-period validation
+- duplicate active-assignment rejection
+- assignment-history preservation through deactivation
+- manager and responsible-assignment descendant visibility
+- ordinary-member visibility boundaries
+- unassigned-member visibility restrictions
+- organization-user self-assignment visibility
+- protected assignment-history access
+- authorized descendant-member listing
+- system-managed compatibility-unit protection
+- legacy Branch reconciliation
+- legacy Department reconciliation
+- Department movement after legacy Branch reassignment
+- stable compatibility-unit identities
+- idempotent compatibility reconciliation
+- hierarchy list bounds
+- deterministic hierarchy list ordering
+- hierarchy mutation auditing
+- compatibility reconciliation auditing
+- deletion and deactivation safeguards
+- existing Branch endpoint compatibility
+- existing Department endpoint compatibility
+- existing Organization Health endpoint compatibility
+- existing Command Centre endpoint compatibility
+- existing Daily Brief endpoint compatibility
+- existing KPI endpoint compatibility
+- existing entity-relationship endpoint compatibility
+- temporary acceptance fixture cleanup
+- Prisma schema validation
+- Prisma Client generation
+- TypeScript compilation
+- migration status validation
+- staged diff validation
+
+Acceptance command:
+
+`npm run hierarchy:acceptance`
+
+Acceptance result:
+
+`SPRINT 022 RUNTIME ACCEPTANCE: PASS`
