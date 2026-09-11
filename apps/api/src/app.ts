@@ -30,6 +30,7 @@ import commandCentreRouter from "./routes/commandCentre.js";
 import dailyBriefRouter from "./routes/dailyBrief.js";
 import kpisRouter from "./routes/kpis.js";
 import entityRelationshipsRouter from "./routes/entityRelationships.js";
+import hierarchyRouter from "./routes/hierarchy.js";
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use("/command-centre", commandCentreRouter);
 app.use("/daily-brief", dailyBriefRouter);
 app.use("/kpis", kpisRouter);
 app.use("/relationships", entityRelationshipsRouter);
+app.use("/hierarchy", hierarchyRouter);
 
 app.use(notFound);
 app.use(errorHandler);

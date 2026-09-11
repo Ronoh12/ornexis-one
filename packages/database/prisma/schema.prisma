@@ -21,6 +21,13 @@ enum UserStatus {
   DISABLED
 }
 
+enum OrganizationalUnitAssignmentRole {
+  MEMBER
+  MANAGER
+  OWNER
+  RESPONSIBLE
+}
+
 enum OrganizationUserStatus {
   INVITED
   ACTIVE
@@ -73,24 +80,27 @@ model Organization {
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  roles               Role[]
-  organizationUsers   OrganizationUser[]
-  contacts            Contact[]
-  auditLogs           AuditLog[]
-  settings            OrganizationSetting?
-  branding            OrganizationBranding?
-  branches            Branch[]
-  departments         Department[]
-  documents           Document[]
-  workItems           WorkItem[]
-  workItemComments    WorkItemComment[]
-  workItemActivities  WorkItemActivity[]
-  entityAttachments   EntityAttachment[]
-  entityRelationships EntityRelationship[]
-  requestTypes        RequestType[]
-  requests            Request[]
-  requestComments     RequestComment[]
-  requestActivities   RequestActivity[]
+  roles                         Role[]
+  organizationUsers             OrganizationUser[]
+  contacts                      Contact[]
+  auditLogs                     AuditLog[]
+  settings                      OrganizationSetting?
+  branding                      OrganizationBranding?
+  branches                      Branch[]
+  departments                   Department[]
+  organizationalUnitTypes       OrganizationalUnitType[]
+  organizationalUnits           OrganizationalUnit[]
+  organizationalUnitAssignments OrganizationalUnitAssignment[]
+  documents                     Document[]
+  workItems                     WorkItem[]
+  workItemComments              WorkItemComment[]
+  workItemActivities            WorkItemActivity[]
+  entityAttachments             EntityAttachment[]
+  entityRelationships           EntityRelationship[]
+  requestTypes                  RequestType[]
+  requests                      Request[]
+  requestComments               RequestComment[]
+  requestActivities             RequestActivity[]
 
   workflowDefinitions     WorkflowDefinition[]
   workflowStates          WorkflowState[]
@@ -230,13 +240,16 @@ model OrganizationUser {
   workItemComments   WorkItemComment[]  @relation("WorkItemCommentAuthor")
   workItemActivities WorkItemActivity[] @relation("WorkItemActivityActor")
 
-  createdEntityAttachments    EntityAttachment[]   @relation("EntityAttachmentAttachedBy")
-  createdEntityRelationships  EntityRelationship[] @relation("EntityRelationshipCreatedBy")
-  requestTypesDefaultAssignee RequestType[]        @relation("RequestTypeDefaultAssignee")
-  requestsRequested           Request[]            @relation("RequestRequester")
-  requestsAssigned            Request[]            @relation("RequestAssignedTo")
-  requestCommentsAuthored     RequestComment[]     @relation("RequestCommentAuthor")
-  requestActivitiesActed      RequestActivity[]    @relation("RequestActivityActor")
+  createdEntityAttachments   EntityAttachment[]   @relation("EntityAttachmentAttachedBy")
+  createdEntityRelationships EntityRelationship[] @relation("EntityRelationshipCreatedBy")
+
+  organizationalUnitAssignments OrganizationalUnitAssignment[] @relation("OrganizationalUnitAssignmentMember")
+  assignedOrganizationalUnits   OrganizationalUnitAssignment[] @relation("OrganizationalUnitAssignmentAssignedBy")
+  requestTypesDefaultAssignee   RequestType[]                  @relation("RequestTypeDefaultAssignee")
+  requestsRequested             Request[]                      @relation("RequestRequester")
+  requestsAssigned              Request[]                      @relation("RequestAssignedTo")
+  requestCommentsAuthored       RequestComment[]               @relation("RequestCommentAuthor")
+  requestActivitiesActed        RequestActivity[]              @relation("RequestActivityActor")
 
   startedWorkflowInstances   WorkflowInstance[] @relation("WorkflowInstanceStartedBy")
   completedWorkflowInstances WorkflowInstance[] @relation("WorkflowInstanceCompletedBy")
@@ -424,6 +437,113 @@ model OrganizationBranding {
   @@map("organization_branding")
 }
 
+model OrganizationalUnitType {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  code            String
+  name            String
+  description     String?
+  displayOrder    Int     @default(0) @map("display_order")
+  isActive        Boolean @default(true) @map("is_active")
+  isSystemManaged Boolean @default(false) @map("is_system_managed")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  units        OrganizationalUnit[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code], map: "organizational_unit_types_org_code")
+  @@unique([organizationId, name], map: "organizational_unit_types_org_name")
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+  @@index([organizationId, displayOrder])
+  @@map("organizational_unit_types")
+}
+
+model OrganizationalUnit {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  unitTypeId     String  @map("unit_type_id") @db.Uuid
+  parentId       String? @map("parent_id") @db.Uuid
+
+  code           String
+  name           String
+  normalizedName String  @map("normalized_name")
+  description    String?
+  isActive       Boolean @default(true) @map("is_active")
+
+  legacyBranchId     String? @map("legacy_branch_id") @db.Uuid
+  legacyDepartmentId String? @map("legacy_department_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  unitType     OrganizationalUnitType @relation(fields: [unitTypeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  parent   OrganizationalUnit?  @relation("OrganizationalUnitHierarchy", fields: [parentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  children OrganizationalUnit[] @relation("OrganizationalUnitHierarchy")
+
+  legacyBranch Branch? @relation("OrganizationalUnitLegacyBranch", fields: [legacyBranchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  legacyDepartment Department? @relation("OrganizationalUnitLegacyDepartment", fields: [legacyDepartmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  assignments OrganizationalUnitAssignment[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, unitTypeId, code], map: "organizational_units_org_type_code")
+  @@unique([legacyBranchId, organizationId], map: "organizational_units_legacy_branch_org")
+  @@unique([legacyDepartmentId, organizationId], map: "organizational_units_legacy_department_org")
+  @@index([organizationId])
+  @@index([organizationId, unitTypeId])
+  @@index([organizationId, parentId])
+  @@index([organizationId, isActive])
+  @@index([legacyBranchId])
+  @@index([legacyDepartmentId])
+  @@map("organizational_units")
+}
+
+model OrganizationalUnitAssignment {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  organizationalUnitId String @map("organizational_unit_id") @db.Uuid
+  organizationUserId   String @map("organization_user_id") @db.Uuid
+
+  assignmentRole      OrganizationalUnitAssignmentRole @map("assignment_role")
+  isPrimary           Boolean                          @default(false) @map("is_primary")
+  isActive            Boolean                          @default(true) @map("is_active")
+  responsibilityLabel String?                          @map("responsibility_label")
+
+  effectiveStart DateTime? @map("effective_start")
+  effectiveEnd   DateTime? @map("effective_end")
+
+  assignedByOrganizationUserId String @map("assigned_by_organization_user_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  organizationalUnit OrganizationalUnit @relation(fields: [organizationalUnitId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  organizationUser OrganizationUser @relation("OrganizationalUnitAssignmentMember", fields: [organizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  assignedBy OrganizationUser @relation("OrganizationalUnitAssignmentAssignedBy", fields: [assignedByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, organizationalUnitId], map: "org_unit_assignments_org_unit_idx")
+  @@index([organizationId, organizationUserId], map: "org_unit_assignments_org_user_idx")
+  @@index([organizationId, assignmentRole])
+  @@index([organizationId, isActive])
+  @@index([assignedByOrganizationUserId])
+  @@map("organizational_unit_assignments")
+}
+
 model Branch {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @map("organization_id") @db.Uuid
@@ -451,6 +571,8 @@ model Branch {
   healthSnapshots   HealthSnapshot[]
   kpiDefinitions    KpiDefinition[]
   kpiMeasurements   KpiMeasurement[]
+
+  organizationalUnit OrganizationalUnit? @relation("OrganizationalUnitLegacyBranch")
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -483,6 +605,8 @@ model Department {
   healthSnapshots     HealthSnapshot[]
   kpiDefinitions      KpiDefinition[]
   kpiMeasurements     KpiMeasurement[]
+
+  organizationalUnit OrganizationalUnit? @relation("OrganizationalUnitLegacyDepartment")
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
