@@ -20,7 +20,9 @@
     "kpi:acceptance": "tsx sprint-020-runtime-acceptance.ts",
     "relationships:acceptance": "tsx sprint-021-runtime-acceptance.ts",
     "hierarchy:acceptance": "tsx sprint-022-runtime-acceptance.ts",
-    "audit:acceptance": "tsx sprint-023-runtime-acceptance.ts"
+    "audit:acceptance": "tsx sprint-023-runtime-acceptance.ts",
+    "webhooks:deliver": "tsx apps/api/src/jobs/webhookDeliveryWorker.ts",
+    "integration:acceptance": "tsx sprint-024-runtime-acceptance.ts"
   },
   "keywords": [],
   "author": "",

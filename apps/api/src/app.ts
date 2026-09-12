@@ -31,6 +31,8 @@ import dailyBriefRouter from "./routes/dailyBrief.js";
 import kpisRouter from "./routes/kpis.js";
 import entityRelationshipsRouter from "./routes/entityRelationships.js";
 import hierarchyRouter from "./routes/hierarchy.js";
+import integrationsRouter from "./routes/integrations.js";
+import integrationApiRouter from "./routes/integrationApi.js";
 
 const app = express();
 
@@ -64,6 +66,8 @@ app.use("/daily-brief", dailyBriefRouter);
 app.use("/kpis", kpisRouter);
 app.use("/relationships", entityRelationshipsRouter);
 app.use("/hierarchy", hierarchyRouter);
+app.use("/integrations", integrationsRouter);
+app.use("/integration-api", integrationApiRouter);
 
 app.use(notFound);
 app.use(errorHandler);

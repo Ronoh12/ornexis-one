@@ -36,6 +36,53 @@ enum AuditEventResult {
   DENIED
 }
 
+enum IntegrationClientStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum IntegrationCredentialStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum WebhookEndpointStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum WebhookSubscriptionStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum IntegrationEventSource {
+  API
+  APPLICATION
+  SYSTEM
+  JOB
+  INTEGRATION
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  FAILED
+  DEAD_LETTER
+  CANCELLED
+}
+
+enum WebhookAttemptResult {
+  DELIVERED
+  HTTP_FAILURE
+  TRANSPORT_FAILURE
+  SECURITY_REJECTED
+  CANCELLED
+}
+
 enum OrganizationStatus {
   TRIAL
   ACTIVE
@@ -153,6 +200,15 @@ model Organization {
   kpiDefinitions             KpiDefinition[]
   kpiMeasurements            KpiMeasurement[]
 
+  integrationClients           IntegrationClient[]
+  integrationCredentials       IntegrationCredential[]
+  integrationClientPermissions IntegrationClientPermission[]
+  webhookEndpoints             WebhookEndpoint[]
+  webhookSubscriptions         WebhookSubscription[]
+  integrationEvents            IntegrationEvent[]
+  webhookDeliveries            WebhookDelivery[]
+  webhookDeliveryAttempts      WebhookDeliveryAttempt[]
+
   @@index([organizationType])
   @@index([status])
   @@map("organizations")
@@ -207,15 +263,17 @@ model Role {
 }
 
 model Permission {
-  id          String   @id @default(uuid()) @db.Uuid
-  code        String   @unique
-  name        String
-  description String?
-  module      String
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                    String   @id @default(uuid()) @db.Uuid
+  code                  String   @unique
+  name                  String
+  description           String?
+  module                String
+  integrationAssignable Boolean  @default(false) @map("integration_assignable")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
-  rolePermissions RolePermission[]
+  rolePermissions              RolePermission[]
+  integrationClientPermissions IntegrationClientPermission[]
 
   @@index([module])
   @@map("permissions")
@@ -292,6 +350,13 @@ model OrganizationUser {
   responsibleAttentionItems AttentionItem[]          @relation("AttentionItemResponsible")
   ownedKpiDefinitions       KpiDefinition[]          @relation("KpiDefinitionOwner")
   createdKpiMeasurements    KpiMeasurement[]         @relation("KpiMeasurementCreatedBy")
+
+  createdIntegrationClients      IntegrationClient[]           @relation("IntegrationClientCreatedBy")
+  createdIntegrationCredentials  IntegrationCredential[]       @relation("IntegrationCredentialCreatedBy")
+  assignedIntegrationPermissions IntegrationClientPermission[] @relation("IntegrationPermissionAssignedBy")
+  createdWebhookEndpoints        WebhookEndpoint[]             @relation("WebhookEndpointCreatedBy")
+  createdWebhookSubscriptions    WebhookSubscription[]         @relation("WebhookSubscriptionCreatedBy")
+  publishedIntegrationEvents     IntegrationEvent[]            @relation("IntegrationEventCreatedBy")
 
   @@unique([organizationId, userId])
   @@unique([id, userId])
@@ -2060,4 +2125,234 @@ model EntityRelationship {
   @@index([organizationId, createdAt])
   @@index([createdByOrganizationUserId])
   @@map("entity_relationships")
+}
+
+// ============================================================
+// Sprint 024 — Integration Gateway and Outbound Webhooks
+// ============================================================
+
+model IntegrationClient {
+  id               String                  @id @default(uuid()) @db.Uuid
+  organizationId   String                  @map("organization_id") @db.Uuid
+  code             String                  @db.VarChar(128)
+  name             String                  @db.VarChar(200)
+  description      String?
+  status           IntegrationClientStatus @default(ACTIVE)
+  externalSystemId String?                 @map("external_system_id") @db.VarChar(200)
+  metadata         Json?
+
+  createdByOrganizationUserId String?   @map("created_by_organization_user_id") @db.Uuid
+  createdAt                   DateTime  @default(now()) @map("created_at")
+  updatedAt                   DateTime  @updatedAt @map("updated_at")
+  suspendedAt                 DateTime? @map("suspended_at")
+  revokedAt                   DateTime? @map("revoked_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy    OrganizationUser? @relation("IntegrationClientCreatedBy", fields: [createdByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  credentials IntegrationCredential[]
+  permissions IntegrationClientPermission[]
+  endpoints   WebhookEndpoint[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code], map: "integration_clients_org_code")
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, externalSystemId])
+  @@index([createdByOrganizationUserId])
+  @@map("integration_clients")
+}
+
+model IntegrationCredential {
+  id                          String                      @id @default(uuid()) @db.Uuid
+  organizationId              String                      @map("organization_id") @db.Uuid
+  integrationClientId         String                      @map("integration_client_id") @db.Uuid
+  prefix                      String                      @unique @db.VarChar(64)
+  credentialHash              String                      @unique @map("credential_hash") @db.VarChar(64)
+  name                        String                      @db.VarChar(200)
+  status                      IntegrationCredentialStatus @default(ACTIVE)
+  expiresAt                   DateTime?                   @map("expires_at")
+  lastUsedAt                  DateTime?                   @map("last_used_at")
+  createdByOrganizationUserId String?                     @map("created_by_organization_user_id") @db.Uuid
+  createdAt                   DateTime                    @default(now()) @map("created_at")
+  revokedAt                   DateTime?                   @map("revoked_at")
+
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  integrationClient IntegrationClient @relation(fields: [integrationClientId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy         OrganizationUser? @relation("IntegrationCredentialCreatedBy", fields: [createdByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@index([organizationId, integrationClientId, status])
+  @@index([organizationId, status, expiresAt])
+  @@index([createdByOrganizationUserId])
+  @@map("integration_credentials")
+}
+
+model IntegrationClientPermission {
+  id                           String   @id @default(uuid()) @db.Uuid
+  organizationId               String   @map("organization_id") @db.Uuid
+  integrationClientId          String   @map("integration_client_id") @db.Uuid
+  permissionId                 String   @map("permission_id") @db.Uuid
+  assignedByOrganizationUserId String   @map("assigned_by_organization_user_id") @db.Uuid
+  createdAt                    DateTime @default(now()) @map("created_at")
+
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  integrationClient IntegrationClient @relation(fields: [integrationClientId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  permission        Permission        @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+  assignedBy        OrganizationUser  @relation("IntegrationPermissionAssignedBy", fields: [assignedByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([integrationClientId, permissionId], map: "integration_client_permissions_client_permission")
+  @@index([organizationId, integrationClientId])
+  @@index([permissionId])
+  @@index([assignedByOrganizationUserId])
+  @@map("integration_client_permissions")
+}
+
+model WebhookEndpoint {
+  id                          String                @id @default(uuid()) @db.Uuid
+  organizationId              String                @map("organization_id") @db.Uuid
+  integrationClientId         String                @map("integration_client_id") @db.Uuid
+  name                        String                @db.VarChar(200)
+  url                         String                @db.VarChar(2048)
+  description                 String?
+  encryptedSecret             String                @map("encrypted_secret")
+  secretIv                    String                @map("secret_iv") @db.VarChar(64)
+  secretAuthTag               String                @map("secret_auth_tag") @db.VarChar(64)
+  secretKeyVersion            String                @map("secret_key_version") @db.VarChar(64)
+  status                      WebhookEndpointStatus @default(ACTIVE)
+  createdByOrganizationUserId String                @map("created_by_organization_user_id") @db.Uuid
+  createdAt                   DateTime              @default(now()) @map("created_at")
+  updatedAt                   DateTime              @updatedAt @map("updated_at")
+  disabledAt                  DateTime?             @map("disabled_at")
+  lastSuccessfulDeliveryAt    DateTime?             @map("last_successful_delivery_at")
+
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  integrationClient IntegrationClient @relation(fields: [integrationClientId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy         OrganizationUser  @relation("WebhookEndpointCreatedBy", fields: [createdByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  subscriptions WebhookSubscription[]
+  deliveries    WebhookDelivery[]
+
+  @@unique([id, organizationId])
+  @@unique([integrationClientId, name], map: "webhook_endpoints_client_name")
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, integrationClientId])
+  @@index([createdByOrganizationUserId])
+  @@map("webhook_endpoints")
+}
+
+model WebhookSubscription {
+  id                          String                    @id @default(uuid()) @db.Uuid
+  organizationId              String                    @map("organization_id") @db.Uuid
+  webhookEndpointId           String                    @map("webhook_endpoint_id") @db.Uuid
+  eventType                   String                    @map("event_type") @db.VarChar(128)
+  payloadVersion              String                    @default("1") @map("payload_version") @db.VarChar(32)
+  status                      WebhookSubscriptionStatus @default(ACTIVE)
+  createdByOrganizationUserId String                    @map("created_by_organization_user_id") @db.Uuid
+  createdAt                   DateTime                  @default(now()) @map("created_at")
+  updatedAt                   DateTime                  @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  endpoint     WebhookEndpoint  @relation(fields: [webhookEndpointId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy    OrganizationUser @relation("WebhookSubscriptionCreatedBy", fields: [createdByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([webhookEndpointId, eventType], map: "webhook_subscriptions_endpoint_event")
+  @@index([organizationId, eventType, status])
+  @@index([organizationId, webhookEndpointId, status])
+  @@index([createdByOrganizationUserId])
+  @@map("webhook_subscriptions")
+}
+
+model IntegrationEvent {
+  id                          String                 @id @default(uuid()) @db.Uuid
+  organizationId              String                 @map("organization_id") @db.Uuid
+  eventType                   String                 @map("event_type") @db.VarChar(128)
+  payloadVersion              String                 @default("1") @map("payload_version") @db.VarChar(32)
+  entityType                  String                 @map("entity_type") @db.VarChar(128)
+  entityId                    String?                @map("entity_id") @db.VarChar(128)
+  payload                     Json
+  payloadHash                 String                 @map("payload_hash") @db.VarChar(64)
+  source                      IntegrationEventSource @default(APPLICATION)
+  idempotencyKey              String?                @map("idempotency_key") @db.VarChar(128)
+  requestId                   String?                @map("request_id") @db.VarChar(128)
+  correlationId               String?                @map("correlation_id") @db.VarChar(128)
+  occurredAt                  DateTime               @map("occurred_at")
+  publishedAt                 DateTime               @default(now()) @map("published_at")
+  createdByOrganizationUserId String?                @map("created_by_organization_user_id") @db.Uuid
+  createdAt                   DateTime               @default(now()) @map("created_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy    OrganizationUser? @relation("IntegrationEventCreatedBy", fields: [createdByOrganizationUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  deliveries WebhookDelivery[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, eventType, idempotencyKey], map: "integration_events_org_type_idempotency")
+  @@index([organizationId, createdAt, id])
+  @@index([organizationId, eventType, occurredAt])
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, correlationId])
+  @@index([createdByOrganizationUserId])
+  @@map("integration_events")
+}
+
+model WebhookDelivery {
+  id                 String                @id @default(uuid()) @db.Uuid
+  organizationId     String                @map("organization_id") @db.Uuid
+  integrationEventId String                @map("integration_event_id") @db.Uuid
+  webhookEndpointId  String                @map("webhook_endpoint_id") @db.Uuid
+  status             WebhookDeliveryStatus @default(PENDING)
+  attemptCount       Int                   @default(0) @map("attempt_count")
+  nextAttemptAt      DateTime?             @map("next_attempt_at")
+  leaseOwner         String?               @map("lease_owner") @db.VarChar(128)
+  leaseExpiresAt     DateTime?             @map("lease_expires_at")
+  lastHttpStatus     Int?                  @map("last_http_status")
+  lastErrorCode      String?               @map("last_error_code") @db.VarChar(128)
+  lastErrorMessage   String?               @map("last_error_message") @db.VarChar(1000)
+  firstAttemptAt     DateTime?             @map("first_attempt_at")
+  deliveredAt        DateTime?             @map("delivered_at")
+  terminalAt         DateTime?             @map("terminal_at")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  event        IntegrationEvent @relation(fields: [integrationEventId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  endpoint     WebhookEndpoint  @relation(fields: [webhookEndpointId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  attempts WebhookDeliveryAttempt[]
+
+  @@unique([id, organizationId])
+  @@unique([integrationEventId, webhookEndpointId], map: "webhook_deliveries_event_endpoint")
+  @@index([organizationId, status, nextAttemptAt])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
+  @@index([organizationId, webhookEndpointId, createdAt])
+  @@index([organizationId, integrationEventId])
+  @@map("webhook_deliveries")
+}
+
+model WebhookDeliveryAttempt {
+  id                String               @id @default(uuid()) @db.Uuid
+  organizationId    String               @map("organization_id") @db.Uuid
+  webhookDeliveryId String               @map("webhook_delivery_id") @db.Uuid
+  attemptNumber     Int                  @map("attempt_number")
+  result            WebhookAttemptResult
+  startedAt         DateTime             @map("started_at")
+  completedAt       DateTime             @map("completed_at")
+  durationMs        Int                  @map("duration_ms")
+  httpStatus        Int?                 @map("http_status")
+  errorCode         String?              @map("error_code") @db.VarChar(128)
+  errorMessage      String?              @map("error_message") @db.VarChar(1000)
+  responseSummary   String?              @map("response_summary") @db.VarChar(2000)
+  requestTimestamp  String               @map("request_timestamp") @db.VarChar(64)
+  createdAt         DateTime             @default(now()) @map("created_at")
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  delivery     WebhookDelivery @relation(fields: [webhookDeliveryId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([webhookDeliveryId, attemptNumber], map: "webhook_delivery_attempts_delivery_number")
+  @@index([organizationId, webhookDeliveryId, createdAt])
+  @@index([organizationId, result, createdAt])
+  @@map("webhook_delivery_attempts")
 }
